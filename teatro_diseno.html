@@ -1,0 +1,679 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Diseño y modelación del teatro</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+:root{
+  --blueprint:#002f61;
+  --blueprint-line:#8FD3F4;
+  --paper:#EEE6D3;
+  --paper-dark:#E2D8C0;
+  --ink:#211F1A;
+  --ink-soft:#5C584C;
+  --teatro:#C1553B;
+  --teatro-ink:#5E2716;
+  --parqueo:#6B7581;
+  --parqueo-ink:#2E333A;
+  --verde:#5C7A47;
+  --verde-ink:#293A1E;
+  --tanque:#3E6E8E;
+  --tanque-ink:#1B3141;
+  --font-display:'Space Grotesk', 'Helvetica Neue', Arial, sans-serif;
+  --font-mono:'IBM Plex Mono', 'Courier New', monospace;
+}
+
+*{box-sizing:border-box;}
+body{
+  margin:0;
+  background:var(--blueprint);
+  color:var(--paper);
+  font-family:var(--font-display);
+  line-height:1.5;
+}
+
+.wrap{max-width:1080px;margin:0 auto;padding:0 24px 80px;}
+
+/* HERO */
+header.hero{
+  position:relative;
+  padding:64px 24px 48px;
+  background:
+    linear-gradient(var(--blueprint), var(--blueprint)),
+    repeating-linear-gradient(0deg, rgba(143,211,244,0.09) 0 1px, transparent 1px 28px),
+    repeating-linear-gradient(90deg, rgba(143,211,244,0.09) 0 1px, transparent 1px 28px);
+  border-bottom:1px solid rgba(143,211,244,0.35);
+}
+header.hero .inner{max-width:1080px;margin:0 auto;}
+header.hero h1{
+  font-size:clamp(32px,5vw,52px);
+  font-weight:700;
+  margin:0 0 8px;
+  color:#fff;
+  letter-spacing:-0.01em;
+}
+header.hero p{
+  font-family:var(--font-mono);
+  font-size:14px;
+  color:var(--blueprint-line);
+  margin:0;
+}
+header.hero .tag{
+  display:inline-block;
+  font-family:var(--font-mono);
+  font-size:12px;
+  color:var(--blueprint);
+  background:var(--blueprint-line);
+  padding:3px 10px;
+  border-radius:2px;
+  margin-bottom:16px;
+}
+
+section{padding:56px 0;border-bottom:1px solid rgba(143,211,244,0.18);}
+section:last-of-type{border-bottom:none;}
+h2{
+  font-size:22px;
+  font-weight:700;
+  color:#fff;
+  margin:0 0 6px;
+}
+.section-note{
+  font-family:var(--font-mono);
+  font-size:13px;
+  color:var(--blueprint-line);
+  margin:0 0 28px;
+  max-width:640px;
+}
+
+/* PLAN CARD */
+.plan-card{
+  background:var(--paper);
+  border-radius:4px;
+  padding:28px;
+  color:var(--ink);
+  display:grid;
+  grid-template-columns:1fr 300px;
+  gap:28px;
+}
+@media (max-width:760px){.plan-card{grid-template-columns:1fr;}}
+
+.plan-card svg{width:100%;height:auto;display:block;}
+
+.controls label{
+  display:block;
+  font-family:var(--font-mono);
+  font-size:12px;
+  color:var(--ink-soft);
+  margin-bottom:4px;
+}
+.controls input[type=range]{width:100%;accent-color:var(--teatro-ink);margin-bottom:4px;}
+.controls .val{font-family:var(--font-mono);font-size:15px;font-weight:500;margin-bottom:18px;}
+
+.stat-list{list-style:none;margin:0;padding:0;font-family:var(--font-mono);font-size:13px;}
+.stat-list li{
+  display:flex;justify-content:space-between;gap:8px;
+  padding:7px 0;border-bottom:1px solid var(--paper-dark);
+}
+.stat-list li:last-child{border-bottom:none;}
+.stat-list .swatch{width:10px;height:10px;border-radius:2px;display:inline-block;margin-right:6px;vertical-align:middle;}
+.checksum{
+  margin-top:14px;padding:10px 12px;background:var(--paper-dark);border-radius:3px;
+  font-family:var(--font-mono);font-size:12px;color:var(--ink-soft);
+}
+.checksum b{color:var(--ink);}
+
+/* DATA TABLE */
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:20px;}
+@media (max-width:760px){.grid-2{grid-template-columns:1fr;}}
+table{
+  width:100%;border-collapse:collapse;background:var(--paper);border-radius:4px;overflow:hidden;
+  font-size:14px;color:var(--ink);
+}
+table caption{
+  text-align:left;font-family:var(--font-mono);font-size:12px;color:var(--blueprint-line);
+  padding:10px 14px;caption-side:top;background:transparent;
+}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--paper-dark);}
+th{font-family:var(--font-mono);font-size:12px;color:var(--ink-soft);font-weight:500;}
+tr:last-child td{border-bottom:none;}
+
+/* FUNCTIONS */
+.func-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:16px;}
+@media (max-width:760px){.func-grid{grid-template-columns:1fr;}}
+.func-card{
+  background:var(--paper);color:var(--ink);border-radius:4px;padding:20px 22px;
+  border-left:4px solid var(--teatro-ink);
+}
+.func-card.parq{border-left-color:var(--parqueo-ink);}
+.func-card.verde{border-left-color:var(--verde-ink);}
+.func-card.tanque{border-left-color:var(--tanque-ink);}
+.func-card h3{margin:0 0 10px;font-size:15px;}
+.func-card .formula{
+  font-family:var(--font-mono);font-size:15px;background:var(--paper-dark);
+  padding:8px 10px;border-radius:3px;margin:0 0 10px;display:inline-block;
+}
+.func-card p{margin:0;font-size:13px;color:var(--ink-soft);}
+.func-card .flag{
+  margin-top:10px;font-size:12px;font-family:var(--font-mono);color:var(--teatro-ink);
+  background:#F5DCD3;padding:8px 10px;border-radius:3px;
+}
+
+/* REVENUE INTERACTIVE */
+.revenue-card{background:var(--paper);color:var(--ink);border-radius:4px;padding:24px;}
+.revenue-card .val{font-family:var(--font-mono);font-size:15px;font-weight:500;}
+.revenue-card canvas{width:100%;height:220px;display:block;margin-top:14px;}
+
+/* 3D */
+.three-card{background:var(--paper);border-radius:4px;padding:8px;position:relative;}
+#three-canvas{width:100%;height:460px;display:block;border-radius:2px;cursor:grab;}
+#three-canvas:active{cursor:grabbing;}
+.three-hint{
+  font-family:var(--font-mono);font-size:12px;color:var(--ink-soft);
+  padding:10px 14px 0;
+}
+
+/* CONCLUSION */
+.conclusion{
+  background:rgba(143,211,244,0.06);border:1px solid rgba(143,211,244,0.25);
+  border-radius:4px;padding:28px 30px;font-size:15px;color:#EAF4FB;
+}
+.conclusion p{margin:0 0 12px;}
+.conclusion p:last-child{margin-bottom:0;}
+
+footer{
+  padding:32px 24px;text-align:center;font-family:var(--font-mono);
+  font-size:12px;color:var(--blueprint-line);opacity:0.7;
+}
+.area_teatro{
+  font-weight: bold;
+  color: red;
+}
+</style>
+</head>
+<body>
+
+<header class="hero">
+  <div class="inner">
+    <span class="tag"><strong>Proyecto Final</strong> de precálculo</span>
+    <h1>Diseño y modelación del teatro (borrador)</h1>
+    <p>Terreno 200 m &times; 300 m &nbsp;·&nbsp; Tanque cilíndrico elevado, capacidad 3,000 m&sup3;</p>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <!-- PLAN -->
+  <section>
+    <h2>1. Croquis a escala</h2>
+    <p class="section-note"></p>
+
+    <div class="plan-card">
+      <svg id="plan-svg" viewBox="0 0 450 500"></svg>
+
+      <div>
+        <div class="controls">
+          <label for="xSlider">x &mdash; ancho del parqueo (m)</label>
+          <input type="range" id="xSlider" min="20" max="230" value="125" step="1">
+          <div class="val"><span id="xVal">125</span> m</div>
+        </div>
+
+        <ul class="stat-list">
+          <li><span><span class="swatch" style="background:var(--verde)"></span>Área verde</span><span id="avVal">—</span></li>
+          <li><span><span class="swatch" style="background:var(--teatro)"></span>Teatro (fijo, 10,000 m²)</span><span id="atVal">—</span></li>
+          <li><span><span class="swatch" style="background:var(--parqueo)"></span>Parqueo</span><span id="apVal">—</span></li>
+          <li><span>Ancho teatro / parqueo</span><span id="widthsVal">—</span></li>
+        </ul>
+
+        <div class="checksum">
+          <b>Comprobación:</b> A<sub>v</sub>(x) + A<sub>teatro</sub> + A<sub>p</sub>(x) = <span id="sumVal">—</span> m&sup2; para cualquier x del dominio &mdash; siempre da el área total del terreno (60,000 m&sup2;).
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <!-- DATA -->
+  <section>
+    <h2>2. Datos y variables</h2>
+    <p class="section-note">Lo que da el enunciado, y lo propuesto</p>
+    <div class="grid-2">
+      <table>
+        <caption>Datos del enunciado</caption>
+        <tbody>
+          <tr><th>Largo del terreno</th><td>300 m</td></tr>
+          <tr><th>Ancho del terreno</th><td>200 m</td></tr>
+          <tr><th>Área total</th><td>60,000 m&sup2;</td></tr>
+          <tr><th>Tanque</th><td>Cilíndrico, elevado</td></tr>
+          <tr><th>Capacidad del tanque</th><td>3,000 m&sup3;</td></tr>
+        </tbody>
+      </table>
+      <table>
+        <caption>Variables y supuestos</caption>
+        <tbody>
+          <tr><th>x</th><td>ancho del parqueo (m)</td></tr>
+          <tr><th class="area_teatro">Área del teatro</th><td>10,000 m&sup2; fija (propuesta de diseño)</td></tr>
+          <tr><th>r, h</th><td>radio y altura del tanque (m)</td></tr>
+          <tr><th>p</th><td>precio del boleto (Q)</td></tr>
+          <tr><th>Demanda</th><td>N(p) = 1,000 &minus; 20p (supuesto lineal)</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- FUNCTIONS -->
+  <section>
+    <h2>3. Funciones del proyecto</h2>
+   
+
+    <div class="func-grid">
+      <div class="func-card parq">
+        <h3>Área del parqueo</h3>
+        <div class="formula">A<sub>p</sub>(x) = 200x</div>
+        <p>x es el ancho de diseño del parqueo. Dominio: 0 &lt; x &lt; 250. En el croquis, esta área se acomoda junto al teatro en vez de como una franja de ancho completo — el modelo matemático simplifica la forma real a un rectángulo equivalente, algo normal al modelar con funciones.</p>
+      </div>
+
+      <div class="func-card verde">
+        <h3>Área verde</h3>
+        <div class="formula">A<sub>v</sub>(x) = 50,000 &minus; 200x</div>
+        <p>Se obtiene restando del área total el área fija del teatro (10,000 m&sup2;) y el área del parqueo. En el croquis ocupa la franja superior de ancho completo.</p>
+      </div>
+
+      <div class="func-card tanque">
+        <h3>Volumen del tanque</h3>
+        <div class="formula">h(r) = 3,000 / (&pi;r&sup2;)</div>
+        <p>Con V = &pi;r&sup2;h = 3,000 fijo, se despeja la altura en función del radio.</p>
+      </div>
+
+      <div class="func-card parq">
+        <h3>Perímetro</h3>
+        <div class="formula">P(x) = 400 + 2x</div>
+        <p>Rectángulo de 200 m de ancho por x m de profundidad.</p>
+        
+      </div>
+
+      <div class="func-card teatro" style="grid-column:1 / -1;border-left-color:var(--teatro-ink);">
+        <h3>Ingreso en taquilla (optimización)</h3>
+        <div class="formula">I(p) = 1,000p &minus; 20p&sup2;</div>
+        <p>Con demanda N(p) = 1,000 &minus; 20p (supuesto, ya que el enunciado no da datos de mercado), el ingreso es I(p) = p&middot;N(p). Es una parábola que abre hacia abajo — su máximo está en el vértice.</p>
+      </div>
+    </div>
+  </section>
+
+  <!-- REVENUE INTERACTIVE -->
+  <section>
+    <h2>4. Optimización del ingreso</h2>
+    <p class="section-note"></p>
+    <div class="revenue-card">
+      <div class="controls" style="max-width:320px;">
+        <label for="pSlider">p &mdash; precio del boleto (Q)</label>
+        <input type="range" id="pSlider" min="0" max="50" value="25" step="1">
+        <div class="val">p = <span id="pVal">25</span> Q &nbsp;→&nbsp; I(p) = <span id="iVal">12,500</span> Q</div>
+      </div>
+      <canvas id="revenueCanvas"></canvas>
+    </div>
+  </section>
+
+  <!-- 3D -->
+  <section>
+    <h2>5. Vista 3D</h2>
+    <p class="section-note">Volumen aproximado del terreno con sus tres zonas y el tanque elevado sobre el teatro. Arrastra para rotar.</p>
+    <div class="three-card">
+      <canvas id="three-canvas"></canvas>
+      <p class="three-hint">Verde = área verde &nbsp;·&nbsp; Terracota = teatro &nbsp;·&nbsp; Gris = parqueo &nbsp;·&nbsp; Azul = tanque &nbsp;·&nbsp; Barra clara = entrada principal</p>
+    </div>
+  </section>
+
+  <!-- CONCLUSION -->
+  <section>
+    <h2>6. Conclusión del proceso</h2>
+    <div class="conclusion">
+      <p>Partimos del terreno fijo de 60,000 m&sup2; y decidimos que el parqueo y el área verde comparten el mismo ancho de 200 m, lo que nos permitió describir ambas áreas con una sola variable x: cuando el parqueo crece, el área verde se reduce en la misma proporción, y el teatro se dejó como un área fija de diseño. Esa relación es lineal, así que las funciones de área y perímetro resultaron funciones de primer grado.</p>
+      <p>Para el tanque, la restricción no fue de área sino de volumen constante (3,000 m&sup3;), lo que nos llevó a despejar la altura en función del radio dentro de la fórmula del cilindro — una relación racional, no lineal.</p>
+      <p>El punto más importante fue el ingreso en taquilla: como no había datos de mercado en el enunciado, tuvimos que asumir una relación de demanda lineal entre precio y boletos vendidos. Multiplicar precio por cantidad genera una función cuadrática, y ahí es donde entra la herramienta central de precálculo del proyecto: el vértice de una parábola da directamente el precio que maximiza el ingreso, sin necesidad de cálculo diferencial.</p>
+    </div>
+  </section>
+
+</div>
+
+<footer>Terreno 200 × 300 m <strong>Grupo #1</strongs></footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+/* ---------- 2D PLAN ---------- */
+const svg = document.getElementById('plan-svg');
+const NS = 'http://www.w3.org/2000/svg';
+const scale = 1.15; // px per meter
+const x0 = 60, y0 = 40;
+const terrainW = 200 * scale;
+const terrainH = 300 * scale;
+
+function el(tag, attrs){
+  const e = document.createElementNS(NS, tag);
+  for(const k in attrs) e.setAttribute(k, attrs[k]);
+  return e;
+}
+
+svg.setAttribute('viewBox', `0 0 ${x0+terrainW+130} ${y0+terrainH+65}`);
+
+// terrain outline
+svg.appendChild(el('rect',{x:x0,y:y0,width:terrainW,height:terrainH,fill:'none',stroke:'#21201B','stroke-width':1.5}));
+// top width label
+svg.appendChild(el('line',{x1:x0,y1:y0-14,x2:x0+terrainW,y2:y0-14,stroke:'#5C584C','stroke-width':1}));
+const topLabel = el('text',{x:x0+terrainW/2,y:y0-20,'text-anchor':'middle','font-family':'IBM Plex Mono, monospace','font-size':12,fill:'#5C584C'});
+topLabel.textContent = '200 m';
+svg.appendChild(topLabel);
+// left height label
+const sideLabel = el('text',{x:x0-24,y:y0+terrainH/2,'text-anchor':'middle','font-family':'IBM Plex Mono, monospace','font-size':12,fill:'#5C584C',transform:`rotate(-90 ${x0-24} ${y0+terrainH/2})`});
+sideLabel.textContent = '300 m';
+svg.appendChild(sideLabel);
+
+const rectVerde = el('rect',{fill:'#5C7A47'});
+const rectTeatro = el('rect',{fill:'#C1553B'});
+const rectParqueo = el('rect',{fill:'#6B7581'});
+svg.appendChild(rectVerde);
+svg.appendChild(rectTeatro);
+svg.appendChild(rectParqueo);
+
+// entrada principal (marca en el borde inferior, sin área propia)
+const entradaGap = el('rect',{fill:'#EEE6D3',width:26,height:4});
+const entradaLine = el('line',{stroke:'#21201B','stroke-width':2});
+svg.appendChild(entradaGap);
+svg.appendChild(entradaLine);
+const entradaLabel = el('text',{'text-anchor':'middle','font-family':'IBM Plex Mono, monospace','font-size':11,fill:'#5C584C'});
+entradaLabel.textContent = 'Entrada principal';
+svg.appendChild(entradaLabel);
+
+// tank symbol (not to scale)
+const tankTower = el('rect',{width:6,fill:'#2E333A'});
+const tankCircle = el('circle',{r:16,fill:'#3E6E8E',stroke:'#1B3141','stroke-width':1.5});
+svg.appendChild(tankTower);
+svg.appendChild(tankCircle);
+const tankLabel = el('text',{'font-family':'IBM Plex Mono, monospace','font-size':10,fill:'#1B3141','text-anchor':'middle'});
+tankLabel.textContent = 'tanque (símbolo)';
+svg.appendChild(tankLabel);
+
+// zone labels
+function makeLabel(size){
+  const t = el('text',{'text-anchor':'middle','font-family':'Space Grotesk, sans-serif','font-size':size,fill:'#fff','font-weight':500});
+  return t;
+}
+const lblVerde = makeLabel(14);
+const lblTeatro = makeLabel(13);
+const lblParqueo = makeLabel(14);
+svg.appendChild(lblVerde);
+svg.appendChild(lblTeatro);
+svg.appendChild(lblParqueo);
+
+const xVal = document.getElementById('xVal');
+const avVal = document.getElementById('avVal');
+const atVal = document.getElementById('atVal');
+const apVal = document.getElementById('apVal');
+const widthsVal = document.getElementById('widthsVal');
+const sumVal = document.getElementById('sumVal');
+const xSlider = document.getElementById('xSlider');
+
+function fmt(n){ return Math.round(n).toLocaleString('es-GT'); }
+
+// Misma distribución que el póster: área verde arriba (ancho completo),
+// teatro y parqueo lado a lado abajo. Las áreas siguen siendo
+// Ap(x)=200x, Av(x)=50000-200x, At=10000 — solo cambia cómo se acomodan.
+function updatePlan(x){
+  const Ap = 200*x;
+  const Av = 50000-200*x;
+  const At = 10000;
+
+  const depthVerde = Av/200;      // 250 - x
+  const depthBottom = 300 - depthVerde; // 50 + x, fila de teatro + parqueo
+  const teatroW = At/depthBottom;
+  const parqueoW = Ap/depthBottom;
+
+  const hVerde = depthVerde * scale;
+  const hBottom = depthBottom * scale;
+  const wTeatro = teatroW * scale;
+  const wParqueo = parqueoW * scale;
+
+  const yVerde = y0;
+  const yBottom = y0 + hVerde;
+
+  rectVerde.setAttribute('x', x0);
+  rectVerde.setAttribute('y', yVerde);
+  rectVerde.setAttribute('width', terrainW);
+  rectVerde.setAttribute('height', hVerde);
+
+  rectTeatro.setAttribute('x', x0);
+  rectTeatro.setAttribute('y', yBottom);
+  rectTeatro.setAttribute('width', wTeatro);
+  rectTeatro.setAttribute('height', hBottom);
+
+  rectParqueo.setAttribute('x', x0+wTeatro);
+  rectParqueo.setAttribute('y', yBottom);
+  rectParqueo.setAttribute('width', wParqueo);
+  rectParqueo.setAttribute('height', hBottom);
+
+  lblVerde.setAttribute('x', x0+terrainW/2);
+  lblVerde.setAttribute('y', yVerde+hVerde/2+5);
+  lblVerde.textContent = 'Área verde';
+
+  lblTeatro.setAttribute('x', x0+wTeatro/2);
+  lblTeatro.setAttribute('y', yBottom+hBottom/2+5);
+  lblTeatro.textContent = wTeatro>34 ? 'Teatro' : '';
+
+  lblParqueo.setAttribute('x', x0+wTeatro+wParqueo/2);
+  lblParqueo.setAttribute('y', yBottom+hBottom/2+5);
+  lblParqueo.textContent = 'Parqueo';
+
+  // tanque sobre el teatro
+  const tCx = x0+wTeatro/2, tCy = yBottom+hBottom*0.32;
+  tankTower.setAttribute('x', tCx-3);
+  tankTower.setAttribute('y', tCy);
+  tankTower.setAttribute('height', 20);
+  tankCircle.setAttribute('cx', tCx);
+  tankCircle.setAttribute('cy', tCy);
+  tankLabel.setAttribute('x', tCx);
+  tankLabel.setAttribute('y', tCy+34);
+
+  // entrada principal: hueco centrado en el borde inferior
+  const gapCx = x0+terrainW/2;
+  const gapY = y0+terrainH;
+  entradaGap.setAttribute('x', gapCx-13);
+  entradaGap.setAttribute('y', gapY-2);
+  entradaLine.setAttribute('x1', gapCx); entradaLine.setAttribute('y1', gapY+16);
+  entradaLine.setAttribute('x2', gapCx); entradaLine.setAttribute('y2', gapY);
+  entradaLabel.setAttribute('x', gapCx);
+  entradaLabel.setAttribute('y', gapY+30);
+
+  xVal.textContent = fmt(x);
+  apVal.textContent = fmt(Ap)+' m²';
+  avVal.textContent = fmt(Av)+' m²';
+  atVal.textContent = fmt(At)+' m²';
+  widthsVal.textContent = fmt(teatroW/scale)+' m / '+fmt(parqueoW/scale)+' m';
+  sumVal.textContent = fmt(Ap+Av+At);
+}
+
+xSlider.addEventListener('input', e => updatePlan(+e.target.value));
+updatePlan(+xSlider.value);
+
+/* ---------- REVENUE CHART ---------- */
+const pSlider = document.getElementById('pSlider');
+const pVal = document.getElementById('pVal');
+const iVal = document.getElementById('iVal');
+const canvas = document.getElementById('revenueCanvas');
+const ctx = canvas.getContext('2d');
+
+function I(p){ return 1000*p - 20*p*p; }
+
+function resizeCanvas(){
+  const rect = canvas.getBoundingClientRect();
+  canvas.width = rect.width * devicePixelRatio;
+  canvas.height = 220 * devicePixelRatio;
+  ctx.setTransform(devicePixelRatio,0,0,devicePixelRatio,0,0);
+  drawChart(+pSlider.value);
+}
+
+function drawChart(pCurrent){
+  const w = canvas.getBoundingClientRect().width;
+  const h = 220;
+  ctx.clearRect(0,0,w,h);
+  const pMax = 50, iMax = I(25);
+  const padL = 40, padB = 24, padT = 10, padR = 10;
+  const plotW = w-padL-padR, plotH = h-padT-padB;
+
+  const toX = p => padL + (p/pMax)*plotW;
+  const toY = i => padT + plotH - (i/iMax)*plotH;
+
+  // axes
+  ctx.strokeStyle = '#5C584C';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(padL, padT); ctx.lineTo(padL, padT+plotH); ctx.lineTo(padL+plotW, padT+plotH);
+  ctx.stroke();
+
+  // curve
+  ctx.strokeStyle = '#C1553B';
+  ctx.lineWidth = 2.5;
+  ctx.beginPath();
+  for(let p=0;p<=pMax;p+=0.5){
+    const xx = toX(p), yy = toY(Math.max(I(p),0));
+    if(p===0) ctx.moveTo(xx,yy); else ctx.lineTo(xx,yy);
+  }
+  ctx.stroke();
+
+  // vertex marker
+  ctx.fillStyle = '#2E333A';
+  ctx.beginPath();
+  ctx.arc(toX(25), toY(iMax), 4, 0, Math.PI*2);
+  ctx.fill();
+  ctx.font = '11px IBM Plex Mono, monospace';
+  ctx.fillText('vértice p=25', toX(25)+8, toY(iMax)-6);
+
+  // current point
+  const curI = Math.max(I(pCurrent),0);
+  ctx.fillStyle = '#3E6E8E';
+  ctx.beginPath();
+  ctx.arc(toX(pCurrent), toY(curI), 5, 0, Math.PI*2);
+  ctx.fill();
+}
+
+pSlider.addEventListener('input', e=>{
+  const p = +e.target.value;
+  pVal.textContent = p;
+  iVal.textContent = fmt(I(p));
+  drawChart(p);
+});
+window.addEventListener('resize', resizeCanvas);
+setTimeout(resizeCanvas, 50);
+
+/* ---------- 3D VIEW ---------- */
+const threeCanvas = document.getElementById('three-canvas');
+const renderer = new THREE.WebGLRenderer({canvas:threeCanvas, antialias:true, alpha:true});
+const scene3 = new THREE.Scene();
+const camera3 = new THREE.PerspectiveCamera(45, 1, 0.1, 1000);
+
+function sizeRenderer(){
+  const rect = threeCanvas.getBoundingClientRect();
+  renderer.setSize(rect.width, 460, false);
+  camera3.aspect = rect.width/460;
+  camera3.updateProjectionMatrix();
+}
+
+const group = new THREE.Group();
+scene3.add(group);
+
+// scale: 1 unit = 10 meters
+const S = 0.1;
+function addBlock(wM, dM, hM, colorHex, xCenterM, zCenterM, yBase){
+  const geo = new THREE.BoxGeometry(wM*S, hM*S, dM*S);
+  const mat = new THREE.MeshLambertMaterial({color:colorHex});
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.position.set(xCenterM*S, yBase + (hM*S)/2, zCenterM*S);
+  group.add(mesh);
+  return mesh;
+}
+
+// Misma distribución que el póster: área verde en un extremo (ancho completo,
+// eje Z), teatro y parqueo lado a lado en el otro extremo (repartidos en X).
+// Usa el mismo x=125 de ejemplo que el croquis 2D por defecto.
+const xEx = 125;
+const ApEx = 200*xEx, AvEx = 50000-200*xEx, AtEx = 10000;
+const depthVerde = AvEx/200;             // 125
+const depthBottom = 300 - depthVerde;    // 175
+const teatroW = AtEx/depthBottom;        // ~57.1
+const parqueoW = ApEx/depthBottom;       // ~142.9
+
+let zCursor = -150;
+const verdeZ = zCursor + depthVerde/2; zCursor += depthVerde;
+const bottomZ = zCursor + depthBottom/2;
+
+addBlock(200, depthVerde, 2, 0x5C7A47, 0, verdeZ, 0);
+const teatroXCenter = -100 + teatroW/2;
+const parqueoXCenter = -100 + teatroW + parqueoW/2;
+const teatroMesh = addBlock(teatroW, depthBottom, 9, 0xC1553B, teatroXCenter, bottomZ, 0);
+addBlock(parqueoW, depthBottom, 1, 0x6B7581, parqueoXCenter, bottomZ, 0);
+
+// entrada principal: barra delgada en el borde exterior de la fila teatro/parqueo
+addBlock(20, 4, 0.6, 0xEEE6D3, 0, 150-2, 0);
+
+// tank: cylinder on a thin support above theatre block
+const tankR = 5, tankH = 38.2;
+const supportH = 8;
+const supportGeo = new THREE.CylinderGeometry(0.8*S*10, 0.8*S*10, supportH*S, 12);
+const supportMat = new THREE.MeshLambertMaterial({color:0x2E333A});
+const support = new THREE.Mesh(supportGeo, supportMat);
+support.position.set(teatroXCenter*S, 9*S + (supportH*S)/2, bottomZ*S);
+group.add(support);
+
+const tankGeo = new THREE.CylinderGeometry(tankR*S, tankR*S, tankH*S, 24);
+const tankMat = new THREE.MeshLambertMaterial({color:0x3E6E8E});
+const tank = new THREE.Mesh(tankGeo, tankMat);
+tank.position.set(teatroXCenter*S, 9*S + supportH*S + (tankH*S)/2, bottomZ*S);
+group.add(tank);
+
+// ground grid
+const grid = new THREE.GridHelper(30, 30, 0x8FD3F4, 0xEAF4FB);
+grid.position.y = -0.02;
+scene3.add(grid);
+
+scene3.add(new THREE.AmbientLight(0xffffff, 0.65));
+const dirLight = new THREE.DirectionalLight(0xffffff, 0.8);
+dirLight.position.set(10,20,10);
+scene3.add(dirLight);
+
+camera3.position.set(16, 12, 16);
+camera3.lookAt(0,2,0);
+
+let rotY = 0.5, rotX = -0.35, autoRotate = true;
+let dragging = false, lastX=0, lastY=0;
+
+function applyCam(){
+  const radius = 22;
+  camera3.position.x = radius*Math.sin(rotY)*Math.cos(rotX);
+  camera3.position.z = radius*Math.cos(rotY)*Math.cos(rotX);
+  camera3.position.y = 8 + radius*Math.sin(rotX);
+  camera3.lookAt(0,2,0);
+}
+
+threeCanvas.addEventListener('pointerdown', e=>{dragging=true;autoRotate=false;lastX=e.clientX;lastY=e.clientY;});
+window.addEventListener('pointerup', ()=>dragging=false);
+window.addEventListener('pointermove', e=>{
+  if(!dragging) return;
+  rotY += (e.clientX-lastX)*0.01;
+  rotX += (e.clientY-lastY)*0.01;
+  rotX = Math.max(-0.8, Math.min(0.8, rotX));
+  lastX=e.clientX; lastY=e.clientY;
+});
+
+function animate(){
+  requestAnimationFrame(animate);
+  if(autoRotate) rotY += 0.0025;
+  applyCam();
+  renderer.render(scene3, camera3);
+}
+sizeRenderer();
+window.addEventListener('resize', sizeRenderer);
+applyCam();
+animate();
+</script>
+</body>
+</html>
