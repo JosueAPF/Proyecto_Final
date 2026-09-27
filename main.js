@@ -105,20 +105,20 @@ const contentData = {
     kicker: "Disposición de las áreas",
     title: "Croquis y disposición del terreno",
     body: [
-      "El terreno se organiza en <strong>tres franjas rectangulares paralelas</strong> que abarcan todo el ancho de 200 m. Esta disposición permite describir las tres superficies con una sola variable independiente, sin perder coherencia con el área total.",
-      "En el visor 3D, el orden de las franjas —de la entrada hacia el fondo— es <strong>parqueo → teatro → área verde</strong>. Este orden es una decisión de representación del equipo (el informe no especifica una secuencia exacta); lo importante, matemáticamente, es que las tres franjas suman el ancho completo y que el área verde y el parqueo son complementarias.",
+      "Según la Figura 1 del informe, el área verde ocupa la <strong>franja superior de ancho completo</strong> (200 m). El teatro y el parqueo comparten la <strong>franja inferior</strong>, colocados lado a lado y cerca de la entrada principal: el teatro a la izquierda y el parqueo a la derecha.",
+      "Esa franja inferior tiene una profundidad de 125 m (los 300 m del terreno menos los 175 m de área verde). Dentro de ella, el ancho de cada zona se ajusta para reproducir exactamente las áreas requeridas por el modelo: 80 m para el teatro y 120 m para el parqueo.",
       "El tanque cilíndrico se representa sobre el techo del teatro, como símbolo y sin escala real respecto al edificio — tal como lo indica el informe original.",
     ],
     table: {
-      headers: ["Zona", "Dimensiones", "Área"],
+      headers: ["Zona", "Dimensiones (visor 3D)", "Área"],
       rows: [
-        ["Parqueo", "200 m × 75 m", "15,000 m²"],
-        ["Teatro", "200 m × 50 m", "10,000 m²"],
+        ["Teatro", "80 m × 125 m", "10,000 m²"],
+        ["Parqueo", "120 m × 125 m", "15,000 m²"],
         ["Área verde", "200 m × 175 m", "35,000 m²"],
       ],
       highlightRow: -1,
     },
-    callout: "Verificación: 15,000 + 10,000 + 35,000 = <b>60,000 m²</b>, exactamente el área del terreno.",
+    callout: "Nota de representación: el visor 3D prioriza fidelidad visual a la Figura 1 del informe. El modelo algebraico AP(x) = 200x trata el parqueo como si su lado mayor coincidiera con los 200 m del terreno — una simplificación habitual para reducir el área a una sola variable x, independiente de la forma exacta con que se dibuje el lote.<br><br>Verificación: 10,000 + 15,000 + 35,000 = <b>60,000 m²</b>, exactamente el área del terreno.",
   },
 
   parqueo: {
@@ -179,19 +179,18 @@ const contentData = {
   perimetro: {
     navLabel: "Perímetro",
     linkedObject: "perimeter_group",
-    kicker: "Función lineal",
-    title: "Perímetro del parqueo",
+    kicker: "Función constante",
+    title: "Perímetro del parque",
     body: [
-      "Este perímetro es el del <strong>rectángulo de parqueo</strong>, no el del terreno completo: 200 m de ancho fijo (el mismo del terreno) por x m de profundidad, la variable de diseño.",
-      "La pendiente 2 indica que cada metro adicional de profundidad del parqueo incrementa en 2 m su perímetro — cada uno de los dos lados de longitud x se contabiliza, además de los dos lados de 200 m.",
-      "Con el valor de diseño x = 75 m, el perímetro del parqueo resulta P(75) = 550 m.",
+      "Aquí <strong>parque</strong> se refiere al terreno completo asignado al proyecto —200 m × 300 m—, no a una de sus zonas internas. Es el mismo perímetro del lote, sin importar cómo se reparta entre teatro, parqueo y área verde.",
+      "Como las dimensiones del terreno son fijas, este perímetro <strong>no depende de x</strong>: es una función constante. Distribuir de otra forma el ancho interno del parqueo no altera en absoluto el contorno exterior del lote.",
+      "Para cualquier valor de diseño, incluido x = 75 m, P(75) = 1,000 m: el perímetro del parque no cambia con la distribución interna de sus zonas.",
     ],
     formulas: [
-      { latex: "P(x) = 2(200 + x) = 400 + 2x", caption: "Perímetro del parqueo en función de x" },
-      { latex: "P(75) = 400 + 2(75) = 550\\text{ m}", caption: "Evaluación con el valor de diseño" },
+      { latex: "P(x) = 2(200 + 300) = 1{,}000\\text{ m}", caption: "Perímetro del terreno completo (el parque), constante para todo x en su dominio" },
     ],
-    tags: ["Función lineal", "Pendiente = 2"],
-    chart: { key: "P", highlightX: 75, highlightLabel: "x = 75 m → 550 m" },
+    tags: ["Función constante", "No depende de x"],
+    chart: { key: "P", highlightX: 75, highlightLabel: "Constante: 1,000 m para todo x" },
   },
 
   taquilla: {
@@ -344,6 +343,7 @@ function selectContent(id, opts = {}) {
     label.textContent = "Datos";
     root.appendChild(label);
     const tableWrap = document.createElement("div");
+    tableWrap.className = "table-scroll";
     tableWrap.innerHTML = buildTable(entry.table);
     root.appendChild(tableWrap);
   }
@@ -409,7 +409,7 @@ const FUNCTION_DEFS = {
   AP: { fn: (x) => 200 * x, domain: [0, 250], xLabel: "x (m)", yLabel: "AP(x) (m²)", name: "AP(x) = 200x" },
   AV: { fn: (x) => 50000 - 200 * x, domain: [0, 250], xLabel: "x (m)", yLabel: "AV(x) (m²)", name: "AV(x) = 50,000 − 200x" },
   h: { fn: (r) => 3000 / (Math.PI * r * r), domain: [2, 40], xLabel: "r (m)", yLabel: "h(r) (m)", name: "h(r) = 3,000 / (πr²)" },
-  P: { fn: (x) => 400 + 2 * x, domain: [0, 250], xLabel: "x (m)", yLabel: "P(x) (m)", name: "P(x) = 400 + 2x" },
+  P: { fn: () => 1000, domain: [0, 250], xLabel: "x (m)", yLabel: "P(x) (m)", name: "P(x) = 1,000 m (constante)", yMin: 0, yMax: 1300 },
   I: { fn: (t) => -2000 * t * t + 10000 * t + 100000, domain: [0, 5], xLabel: "t (unidades de Q10)", yLabel: "I(t) (Q)", name: "I(t) = −2,000t² + 10,000t + 100,000" },
 };
 
@@ -496,6 +496,8 @@ function buildChartBlock(cfg) {
             ticks: { color: "#8A9186", font: { size: 10 } },
           },
           y: {
+            min: def.yMin,
+            max: def.yMax,
             title: { display: true, text: def.yLabel, font: { family: "IBM Plex Sans", size: 11 }, color: "#565F55" },
             grid: { color: "#E9E5D8" },
             ticks: { color: "#8A9186", font: { size: 10 } },
@@ -540,14 +542,16 @@ const DEFAULT_VIEW = {
   target: new THREE.Vector3(0, 5, 150),
 };
 
-// Vistas de cámara asociadas a cada objeto seleccionable (posición + mira)
+// Vistas de cámara asociadas a cada objeto seleccionable (posición + mira).
+// Coordenadas alineadas con la nueva disposición: teatro y tanque a la
+// izquierda (x ≈ −60), parqueo a la derecha (x ≈ 40), área verde al fondo.
 const CAMERA_VIEWS = {
-  ground_parqueo: { pos: new THREE.Vector3(90, 85, 40), target: new THREE.Vector3(0, 0, 37.5) },
-  ground_verde: { pos: new THREE.Vector3(140, 140, 260), target: new THREE.Vector3(0, 0, 212) },
-  tank_group: { pos: new THREE.Vector3(55, 55, 165), target: new THREE.Vector3(60, 28, 108) },
-  perimeter_group: { pos: new THREE.Vector3(95, 78, 42), target: new THREE.Vector3(0, 0, 37.5) },
+  ground_parqueo: { pos: new THREE.Vector3(150, 95, 15), target: new THREE.Vector3(40, 0, 62.5) },
+  ground_verde: { pos: new THREE.Vector3(140, 140, 262), target: new THREE.Vector3(0, 0, 212.5) },
+  tank_group: { pos: new THREE.Vector3(-165, 62, 105), target: new THREE.Vector3(-74, 24, 47) },
+  perimeter_group: { pos: DEFAULT_VIEW.pos.clone(), target: DEFAULT_VIEW.target.clone() },
   entrance_group: { pos: new THREE.Vector3(45, 30, -10), target: new THREE.Vector3(0, 4, 8) },
-  theatre_building: { pos: new THREE.Vector3(120, 70, 60), target: new THREE.Vector3(0, 14, 100) },
+  theatre_building: { pos: new THREE.Vector3(-165, 78, 150), target: new THREE.Vector3(-60, 14, 62.5) },
 };
 
 function initThree() {
@@ -567,6 +571,7 @@ function initThree() {
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   holder.appendChild(renderer.domElement);
+  renderer.domElement.style.touchAction = "none"; // gestos táctiles controlan la cámara, no la página
 
   controls = new OrbitControls(camera, renderer.domElement);
   controls.target.copy(DEFAULT_VIEW.target);
@@ -639,10 +644,17 @@ function buildTerrain() {
   const L = MODEL.terrenoLargo;   // 300 — eje z
   const halfW = W / 2;
 
-  // Orden de franjas a lo largo de z, desde la entrada (z=0) hacia el fondo:
-  const zParqueoStart = 0, zParqueoEnd = MODEL.xDiseno;                       // 0–75
-  const zTeatroStart = zParqueoEnd, zTeatroEnd = zTeatroStart + MODEL.teatroLargo; // 75–125
-  const zVerdeStart = zTeatroEnd, zVerdeEnd = L;                              // 125–300
+  // Disposición según la Figura 1 del informe: el área verde ocupa la
+  // franja superior de ancho completo; el teatro y el parqueo comparten,
+  // lado a lado, la franja inferior cercana a la entrada principal.
+  const bandDepth = L - MODEL.verdeArea / W;              // 300 − 175 = 125 m
+  const zVerdeStart = bandDepth, zVerdeEnd = L;            // 125–300
+  const zBandCenter = bandDepth / 2;
+
+  const teatroWidth = MODEL.teatroArea / bandDepth;        // 10,000 / 125 = 80 m
+  const parqueoWidth = MODEL.parqueoArea / bandDepth;       // 15,000 / 125 = 120 m
+  const xTeatro = -halfW + teatroWidth / 2;                 // −60 (izquierda)
+  const xParqueo = -halfW + teatroWidth + parqueoWidth / 2; // 40 (derecha)
 
   // --- Base del terreno ---
   const baseGeo = new THREE.PlaneGeometry(W + 10, L + 10);
@@ -653,32 +665,32 @@ function buildTerrain() {
   base.receiveShadow = true;
   scene.add(base);
 
-  // --- Zona: Parqueo ---
-  addZone("ground_parqueo", 0x8B8D86, W, zParqueoEnd - zParqueoStart, 0, (zParqueoStart + zParqueoEnd) / 2, makeParkingTexture());
+  // --- Zona: Parqueo (derecha de la franja inferior) ---
+  const parkTex = makeParkingTexture();
+  addZone("ground_parqueo", 0x8B8D86, parqueoWidth, bandDepth, 0, zBandCenter, parkTex, true, xParqueo);
 
-  // --- Zona: Área verde (con algunos árboles decorativos, no seleccionables) ---
+  // --- Zona: Área verde (franja superior, ancho completo) ---
   addZone("ground_verde", 0x7C9473, W, zVerdeEnd - zVerdeStart, 0, (zVerdeStart + zVerdeEnd) / 2, null);
   scatterTrees(zVerdeStart, zVerdeEnd, halfW);
 
-  // --- Franja base del teatro (para que el suelo bajo el edificio tenga el
-  //     mismo lenguaje visual que las otras dos zonas) ---
-  addZone(null, 0xCFC7AE, W, zTeatroEnd - zTeatroStart, -0.01, (zTeatroStart + zTeatroEnd) / 2, null, false);
+  // --- Franja base del teatro (izquierda de la franja inferior) ---
+  addZone(null, 0xCFC7AE, teatroWidth, bandDepth, -0.01, zBandCenter, null, false, xTeatro);
 
   // --- Edificio del teatro ---
-  buildTheatreBuilding(zTeatroStart, zTeatroEnd, halfW);
+  buildTheatreBuilding(xTeatro, zBandCenter, teatroWidth, bandDepth);
 
   // --- Tanque cilíndrico (sobre el techo del teatro) ---
-  buildTank(zTeatroStart, zTeatroEnd);
+  buildTank(xTeatro, zBandCenter, teatroWidth, bandDepth);
 
-  // --- Entrada principal ---
+  // --- Entrada principal (centrada, sobre el borde frontal) ---
   buildEntrance();
 
-  // --- Perímetro (marco seleccionable alrededor del PARQUEO, no del terreno) ---
-  buildPerimeter(W, zParqueoStart, zParqueoEnd);
+  // --- Perímetro (marco del TERRENO COMPLETO — "el parque" del informe) ---
+  buildPerimeter(W, L);
 }
 
 /** Crea una franja rectangular del terreno; si id no es null, es seleccionable. */
-function addZone(id, color, width, depth, y, zCenter, texture, selectable = true) {
+function addZone(id, color, width, depth, y, zCenter, texture, selectable = true, xCenter = 0) {
   const mat = new THREE.MeshStandardMaterial({
     color: texture ? 0xffffff : color,
     map: texture || null,
@@ -689,7 +701,7 @@ function addZone(id, color, width, depth, y, zCenter, texture, selectable = true
   }
   const geo = new THREE.BoxGeometry(width, 0.5, depth);
   const mesh = new THREE.Mesh(geo, mat);
-  mesh.position.set(0, y, zCenter);
+  mesh.position.set(xCenter, y, zCenter);
   mesh.receiveShadow = true;
   mesh.castShadow = false;
   scene.add(mesh);
@@ -728,17 +740,17 @@ function mulberry32(seed) {
   };
 }
 
-function buildTheatreBuilding(zStart, zEnd, halfW) {
+function buildTheatreBuilding(xCenter, zCenter, footprintWidth, footprintDepth) {
   const group = new THREE.Group();
-  const depth = zEnd - zStart;
-  const width = MODEL.terrenoAncho * 0.82; // ligeramente menor al ancho total, deja retiro visual
+  const width = footprintWidth * 0.8;   // retiro visual respecto al lote asignado
+  const depth = footprintDepth * 0.55;
   const height = 16;
 
   const wallMat = new THREE.MeshStandardMaterial({ color: 0xC9BFA0, roughness: 0.85 });
   const roofMat = new THREE.MeshStandardMaterial({ color: 0xB2A57F, roughness: 0.7 });
 
-  const main = new THREE.Mesh(new THREE.BoxGeometry(width, height, depth * 0.86), wallMat);
-  main.position.set(0, height / 2, zStart + depth / 2);
+  const main = new THREE.Mesh(new THREE.BoxGeometry(width, height, depth), wallMat);
+  main.position.set(xCenter, height / 2, zCenter);
   main.castShadow = true;
   main.receiveShadow = true;
   group.add(main);
@@ -746,13 +758,13 @@ function buildTheatreBuilding(zStart, zEnd, halfW) {
   // Torre escénica (fly tower): volumen más alto característico de teatros
   const towerH = 9;
   const tower = new THREE.Mesh(new THREE.BoxGeometry(width * 0.42, towerH, depth * 0.5), roofMat);
-  tower.position.set(0, height + towerH / 2, zStart + depth * 0.62);
+  tower.position.set(xCenter, height + towerH / 2, zCenter + depth * 0.15);
   tower.castShadow = true;
   group.add(tower);
 
-  // Marquesina/entrada sobre la cara frontal (hacia el parqueo, z pequeño)
-  const canopy = new THREE.Mesh(new THREE.BoxGeometry(width * 0.5, 1.1, 8), roofMat);
-  canopy.position.set(0, height * 0.42, zStart - 3.5);
+  // Marquesina/entrada sobre la cara frontal (hacia la entrada, z pequeño)
+  const canopy = new THREE.Mesh(new THREE.BoxGeometry(width * 0.55, 1.1, 8), roofMat);
+  canopy.position.set(xCenter, height * 0.42, zCenter - depth / 2 - 3.5);
   canopy.castShadow = true;
   group.add(canopy);
 
@@ -763,12 +775,14 @@ function buildTheatreBuilding(zStart, zEnd, halfW) {
   return group;
 }
 
-function buildTank(zStart, zEnd) {
+function buildTank(xCenter, zCenter, footprintWidth, footprintDepth) {
   const group = new THREE.Group();
   const roofY = 16; // debe coincidir con la altura del edificio
   const legH = 4.2;
-  const tankX = MODEL.terrenoAncho * 0.82 * 0.28;      // cerca de una esquina del techo
-  const tankZ = zStart + (zEnd - zStart) * 0.28;
+  const buildingWidth = footprintWidth * 0.8;
+  const buildingDepth = footprintDepth * 0.55;
+  const tankX = xCenter - buildingWidth * 0.24;   // cerca de una esquina del techo
+  const tankZ = zCenter - buildingDepth * 0.22;
 
   const legMat = new THREE.MeshStandardMaterial({ color: 0x6E6A5C, roughness: 0.6, metalness: 0.2 });
   const tankMat = new THREE.MeshStandardMaterial({ color: 0xAEB4B8, roughness: 0.35, metalness: 0.55 });
@@ -834,23 +848,22 @@ function buildEntrance() {
   registerSelectable("entrance_group", group.children, group);
 }
 
-/** Marco que traza el contorno del rectángulo de PARQUEO (200 × x), no el
- * perímetro del terreno completo — el modelo P(x) = 400 + 2x corresponde
- * únicamente a esta franja. */
-function buildPerimeter(W, zStart, zEnd) {
+/** Marco que traza el contorno del TERRENO COMPLETO (200 × 300) — es lo que
+ * el informe llama "el parque": P(x) = 2(200+300) = 1,000 m, constante,
+ * sin relación con la distribución interna de teatro/parqueo/área verde. */
+function buildPerimeter(W, L) {
   const group = new THREE.Group();
-  const depth = zEnd - zStart;
   const mat = new THREE.MeshStandardMaterial({ color: 0x9AA38F, roughness: 0.6 });
   const h = 0.9, th = 0.9;
-  // Cuatro tramos: frente, fondo, izquierda, derecha — bordeando solo el parqueo
+  // Cuatro tramos: frente, fondo, izquierda, derecha — todo el perímetro del lote
   const front = new THREE.Mesh(new THREE.BoxGeometry(W + th, h, th), mat);
-  front.position.set(0, h / 2, zStart);
+  front.position.set(0, h / 2, 0);
   const back = new THREE.Mesh(new THREE.BoxGeometry(W + th, h, th), mat);
-  back.position.set(0, h / 2, zEnd);
-  const left = new THREE.Mesh(new THREE.BoxGeometry(th, h, depth + th), mat);
-  left.position.set(-W / 2, h / 2, zStart + depth / 2);
-  const right = new THREE.Mesh(new THREE.BoxGeometry(th, h, depth + th), mat);
-  right.position.set(W / 2, h / 2, zStart + depth / 2);
+  back.position.set(0, h / 2, L);
+  const left = new THREE.Mesh(new THREE.BoxGeometry(th, h, L + th), mat);
+  left.position.set(-W / 2, h / 2, L / 2);
+  const right = new THREE.Mesh(new THREE.BoxGeometry(th, h, L + th), mat);
+  right.position.set(W / 2, h / 2, L / 2);
   [front, back, left, right].forEach((m) => { m.castShadow = true; group.add(m); });
 
   scene.add(group);

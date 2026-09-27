@@ -48,7 +48,9 @@
 
 html, body {
   height: 100%;
+  height: 100dvh; /* alto real de viewport en móviles: evita saltos al mostrar/ocultar la barra del navegador */
   margin: 0;
+  overscroll-behavior: none; /* evita el "rebote"/pull-to-refresh del navegador al arrastrar dentro del visor 3D */
 }
 
 body {
@@ -59,6 +61,7 @@ body {
   line-height: 1.55;
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
+  padding-top: env(safe-area-inset-top, 0px); /* respeta el notch / la isla dinámica en iOS */
 }
 
 h1, h2, h3, h4 {
@@ -317,12 +320,14 @@ a { color: var(--accent); }
 #canvas-holder {
   position: absolute;
   inset: 0;
+  touch-action: none; /* evita que el navegador haga scroll/zoom de la página al arrastrar sobre el visor 3D */
 }
 #canvas-holder canvas {
   display: block;
   width: 100%;
   height: 100%;
   cursor: grab;
+  touch-action: none;
 }
 #canvas-holder canvas:active { cursor: grabbing; }
 
@@ -479,11 +484,17 @@ a { color: var(--accent); }
   margin: 6px 2px 0;
 }
 
+.table-scroll {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+  margin-bottom: 8px;
+}
+
 .data-table {
   width: 100%;
   border-collapse: collapse;
   font-size: 13px;
-  margin-bottom: 8px;
+  margin-bottom: 0;
 }
 .data-table th, .data-table td {
   text-align: left;
@@ -560,13 +571,20 @@ a { color: var(--accent); }
 
 /* =====================================================================
    RESPONSIVE
+   La app usa un layout de 3 columnas en escritorio/tablet ancho. Por
+   debajo de 900px, la nav y el panel se convierten en cajones (drawers)
+   que se deslizan sobre el visor 3D, que pasa a ocupar toda la pantalla.
    ===================================================================== */
 @media (max-width: 1180px) {
   :root { --nav-w: 232px; --panel-w: 340px; }
 }
 
 @media (max-width: 900px) {
-  .icon-btn { display: inline-flex; }
+  .icon-btn {
+    display: inline-flex;
+    width: 40px;   /* objetivo táctil cómodo (~40-44px) */
+    height: 40px;
+  }
 
   .app {
     grid-template-columns: 0 1fr 0;
@@ -575,10 +593,13 @@ a { color: var(--accent); }
 
   .side-nav, .info-panel {
     position: fixed;
-    top: var(--topbar-h);
+    /* Debajo de la topbar Y del notch/isla dinámica: position:fixed ignora
+       el padding-top del body, así que la safe-area se suma aquí aparte. */
+    top: calc(var(--topbar-h) + env(safe-area-inset-top, 0px));
     bottom: 0;
-    width: min(84vw, 320px);
+    width: min(86vw, 320px);
     transition: transform 0.28s ease;
+    padding-bottom: env(safe-area-inset-bottom, 0px);
   }
   .side-nav { left: 0; transform: translateX(-100%); }
   .info-panel { right: 0; transform: translateX(100%); }
@@ -589,18 +610,42 @@ a { color: var(--accent); }
   .scrim {
     display: block;
     position: fixed;
-    inset: var(--topbar-h) 0 0 0;
-    background: rgba(20, 24, 20, 0.35);
+    inset: calc(var(--topbar-h) + env(safe-area-inset-top, 0px)) 0 0 0;
+    background: rgba(20, 24, 20, 0.4);
     z-index: 19;
   }
   .scrim[hidden] { display: none; }
 
   .viewport-hint { display: none; }
   .scene-legend { display: none; }
+
+  /* Botón "Vista general" con margen respecto al borde del visor */
+  .viewport-topbar { top: max(14px, env(safe-area-inset-top, 0px)); }
+
+  /* Tarjetas y tipografía del panel un poco más compactas en móvil */
+  .info-panel-scroll { padding: 20px 16px 32px; }
+  .panel-title { font-size: 19px; }
+  .formula-box { padding: 12px 13px; }
+  .data-table { font-size: 12.3px; }
 }
 
 @media (max-width: 520px) {
   .topbar-title h1 { font-size: 14.5px; }
   .topbar-title .eyebrow { display: none; }
   .ghost-btn { font-size: 11.5px; padding: 8px 10px; }
+}
+
+/* Teléfonos angostos (iPhone SE y similares) */
+@media (max-width: 380px) {
+  .side-nav, .info-panel { width: 90vw; }
+  .info-panel-scroll { padding: 16px 13px 28px; }
+  .panel-title { font-size: 17.5px; }
+  .chart-readout { flex-direction: column; gap: 3px; }
+}
+
+/* Móvil en horizontal: poca altura disponible, se ajustan los cajones */
+@media (max-height: 480px) and (orientation: landscape) {
+  .side-nav, .info-panel { width: min(60vw, 320px); }
+  .side-nav-scroll { padding: 12px 12px 10px; }
+  .nav-footer { margin-top: 12px; padding-top: 10px; }
 }
