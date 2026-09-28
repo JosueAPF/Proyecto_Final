@@ -1,25 +1,15 @@
-/* =====================================================================
-   SIMULADOR 3D — MODELADO MATEMÁTICO DE UN TEATRO
-   main.js
+/*
+  josue porras : 0900-15-18671
 
-   Organización del archivo (léelo en este orden):
-     1. Constantes del modelo matemático (las mismas cifras del informe)
-     2. Contenido de cada sección: texto, fórmulas (LaTeX) y gráficas
-     3. Construcción de la interfaz (nav izquierda + panel derecho)
-     4. Motor Chart.js: una función genérica que dibuja cualquier función
-     5. Motor Three.js: escena, terreno, raycasting, resaltado, cámara
-     6. Arranque de la aplicación
+*/
 
-   Cada bloque está comentado pensando en un estudiante de Pre-Cálculo
-   que quiere entender qué hace el código, no solo copiarlo.
-   ===================================================================== */
+
 
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
 /* =====================================================================
-   1. CONSTANTES DEL MODELO MATEMÁTICO
-   Estas cifras son las mismas que aparecen en el informe: dimensiones
+   1. dimensiones
    del terreno, valor de diseño x = 75 m, y datos del tanque cilíndrico.
    Mantenerlas centralizadas evita "números mágicos" repetidos en el
    código y permite recalcular todo si un valor cambia.
@@ -531,6 +521,7 @@ function selectContentWithCleanup(id, opts) {
 let scene, camera, renderer, controls, raycaster, pointer;
 const pointerDownPos = new THREE.Vector2();
 let selectableObjects = [];  // meshes/objetos que responden a clic
+let animatedCreatures = [];  // figuras decorativas (personas, perro, cometa) con vida propia por cuadro
 let selectionRegistry = {};  // id -> { object3D, meshes[] } para resaltar
 let selectedId = null;
 let highlightRing;
@@ -687,6 +678,11 @@ function buildTerrain() {
 
   // --- Perímetro (marco del TERRENO COMPLETO — "el parque" del informe) ---
   buildPerimeter(W, L);
+
+  // --- Vida en la escena: personas, familia, perro, cometa y autos ---
+  // Puramente decorativo: no son seleccionables ni afectan el raycasting,
+  // igual que los árboles del área verde.
+  buildLife({ xTeatro, xParqueo, teatroWidth, parqueoWidth, bandDepth, zVerdeStart, zVerdeEnd, halfW });
 }
 
 /** Crea una franja rectangular del terreno; si id no es null, es seleccionable. */
@@ -871,6 +867,310 @@ function buildPerimeter(W, L) {
   registerSelectable("perimeter_group", [front, back, left, right], group);
 }
 
+/* =====================================================================
+   VIDA EN LA ESCENA — personas, familia, perro y cometa en el área
+   verde; autos estacionados en el parqueo. Todo esto es puramente
+   decorativo: nunca se agrega a `selectableObjects`, así que no
+   interfiere con el raycasting ni con el resto de la lógica de la app.
+   ===================================================================== */
+
+/**
+ * Crea una figura humana muy simplificada (estilo "muñeco de escala" de
+ * una maqueta de arquitectura): esfera para la cabeza, cilindro para el
+ * torso, y cuatro extremidades articuladas por un pivote en su base, de
+ * modo que rotarlas basta para simular el vaivén de caminar.
+ */
+function createFigure({ shirtColor = 0x3C5A52, pantsColor = 0x3A3F3A, skinColor = 0xC9A57B, scale = 1 } = {}) {
+  const group = new THREE.Group();
+  const skinMat = new THREE.MeshStandardMaterial({ color: skinColor, roughness: 0.9 });
+  const shirtMat = new THREE.MeshStandardMaterial({ color: shirtColor, roughness: 0.85 });
+  const pantsMat = new THREE.MeshStandardMaterial({ color: pantsColor, roughness: 0.85 });
+
+  const hipY = 0.95 * scale;
+
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.24 * scale, 12, 10), skinMat);
+  head.position.set(0, hipY + 0.82 * scale, 0);
+  head.castShadow = true;
+  group.add(head);
+
+  const torso = new THREE.Mesh(new THREE.CylinderGeometry(0.21 * scale, 0.25 * scale, 0.72 * scale, 8), shirtMat);
+  torso.position.set(0, hipY + 0.36 * scale, 0);
+  torso.castShadow = true;
+  group.add(torso);
+
+  // Una "extremidad" es un pivote (para rotar) que contiene el cilindro
+  // desplazado hacia abajo, de modo que el pivote actúa como articulación.
+  function limb(mat, len, radius, x, y) {
+    const pivot = new THREE.Group();
+    pivot.position.set(x, y, 0);
+    const mesh = new THREE.Mesh(new THREE.CylinderGeometry(radius, radius * 0.82, len, 6), mat);
+    mesh.position.set(0, -len / 2, 0);
+    mesh.castShadow = true;
+    pivot.add(mesh);
+    group.add(pivot);
+    return pivot;
+  }
+
+  const legL = limb(pantsMat, 0.92 * scale, 0.085 * scale, -0.11 * scale, hipY);
+  const legR = limb(pantsMat, 0.92 * scale, 0.085 * scale, 0.11 * scale, hipY);
+  const armL = limb(shirtMat, 0.66 * scale, 0.065 * scale, -0.3 * scale, hipY + 0.68 * scale);
+  const armR = limb(shirtMat, 0.66 * scale, 0.065 * scale, 0.3 * scale, hipY + 0.68 * scale);
+
+  return { group, legL, legR, armL, armR };
+}
+
+/**
+ * Hace que una figura camine en un círculo alrededor de `center`, con
+ * radio, velocidad angular y fase propios. El ciclo de piernas/brazos se
+ * deriva del ángulo recorrido, así que el paso siempre se ve natural sin
+ * importar la velocidad.
+ */
+function addLoopWalker({ center, radius, speed, phase = 0, shirtColor, pantsColor, scale = 1 }) {
+  const fig = createFigure({ shirtColor, pantsColor, scale });
+  scene.add(fig.group);
+  const state = { angle: phase };
+  return {
+    update(delta) {
+      state.angle += delta * speed;
+      const x = center.x + Math.cos(state.angle) * radius;
+      const z = center.z + Math.sin(state.angle) * radius;
+      const dx = -Math.sin(state.angle), dz = Math.cos(state.angle); // tangente = dirección de avance
+      const strideRate = 6.2 / scale;
+      const bob = Math.abs(Math.sin(state.angle * strideRate)) * 0.05 * scale;
+      fig.group.position.set(x, bob, z);
+      fig.group.rotation.y = Math.atan2(dx, dz);
+      const swing = Math.sin(state.angle * strideRate) * 0.5;
+      fig.legL.rotation.x = swing;
+      fig.legR.rotation.x = -swing;
+      fig.armL.rotation.x = -swing * 0.7;
+      fig.armR.rotation.x = swing * 0.7;
+    },
+  };
+}
+
+/** Figura de pie con un ligero balanceo, para las escenas donde alguien
+ * simplemente está parado (ej. junto a la entrada) en vez de caminar. */
+function addIdleFigure({ position, rotationY = 0, shirtColor, pantsColor, scale = 1, phase = 0 }) {
+  const fig = createFigure({ shirtColor, pantsColor, scale });
+  fig.group.position.copy(position);
+  fig.group.rotation.y = rotationY;
+  scene.add(fig.group);
+  return {
+    update(delta, elapsed) {
+      const sway = Math.sin(elapsed * 1.1 + phase) * 0.03;
+      fig.group.rotation.z = sway;
+      fig.armL.rotation.x = Math.sin(elapsed * 0.9 + phase) * 0.06;
+      fig.armR.rotation.x = -Math.sin(elapsed * 0.9 + phase) * 0.06;
+    },
+  };
+}
+
+/** Perro muy simplificado: cuerpo tipo cápsula, cabeza, cola y cuatro
+ * patas que alternan en pares diagonales al trotar. */
+function createDog(scale = 1) {
+  const group = new THREE.Group();
+  const furMat = new THREE.MeshStandardMaterial({ color: 0x8A6A45, roughness: 0.92 });
+
+  const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.17 * scale, 0.46 * scale, 4, 8), furMat);
+  body.rotation.z = Math.PI / 2;
+  body.position.set(0, 0.27 * scale, 0);
+  body.castShadow = true;
+  group.add(body);
+
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.15 * scale, 10, 8), furMat);
+  head.position.set(0.4 * scale, 0.33 * scale, 0);
+  head.castShadow = true;
+  group.add(head);
+
+  const tail = new THREE.Mesh(new THREE.CylinderGeometry(0.02 * scale, 0.05 * scale, 0.3 * scale, 6), furMat);
+  tail.position.set(-0.4 * scale, 0.4 * scale, 0);
+  tail.rotation.z = Math.PI * 0.65;
+  tail.castShadow = true;
+  group.add(tail);
+
+  const legs = [];
+  [[-0.15, 0.13], [-0.15, -0.13], [0.15, 0.13], [0.15, -0.13]].forEach(([lx, lz]) => {
+    const pivot = new THREE.Group();
+    pivot.position.set(lx * scale, 0.25 * scale, lz * scale);
+    const leg = new THREE.Mesh(new THREE.CylinderGeometry(0.032 * scale, 0.032 * scale, 0.25 * scale, 6), furMat);
+    leg.position.set(0, -0.125 * scale, 0);
+    leg.castShadow = true;
+    pivot.add(leg);
+    group.add(pivot);
+    legs.push(pivot);
+  });
+
+  return { group, tail, legs };
+}
+
+/** Igual que addLoopWalker, pero para el perro: trote más rápido y patas
+ * en pares diagonales (delantera-izq + trasera-der, y viceversa). */
+function addDogWalker({ center, radius, speed, phase = 0, scale = 0.85 }) {
+  const dog = createDog(scale);
+  scene.add(dog.group);
+  const state = { angle: phase };
+  return {
+    update(delta) {
+      state.angle += delta * speed;
+      const x = center.x + Math.cos(state.angle) * radius;
+      const z = center.z + Math.sin(state.angle) * radius;
+      const dx = -Math.sin(state.angle), dz = Math.cos(state.angle);
+      const trot = state.angle * 9;
+      dog.group.position.set(x, Math.abs(Math.sin(trot)) * 0.045 * scale, z);
+      dog.group.rotation.y = Math.atan2(dx, dz);
+      const swing = Math.sin(trot) * 0.6;
+      dog.legs[0].rotation.x = swing;   // delantera izquierda
+      dog.legs[3].rotation.x = swing;   // trasera derecha (par diagonal)
+      dog.legs[1].rotation.x = -swing;  // delantera derecha
+      dog.legs[2].rotation.x = -swing;  // trasera izquierda
+      dog.tail.rotation.y = Math.sin(trot * 1.4) * 0.5;
+    },
+  };
+}
+
+/** Persona de pie sosteniendo el hilo de una cometa que flota y se
+ * balancea en lo alto. El hilo es una línea cuyos dos extremos se
+ * recalculan cada cuadro: la mano de la figura y la cometa. */
+function buildKiteFlyer(position) {
+  const fig = createFigure({ shirtColor: 0xB9822E, pantsColor: 0x3A3F3A, scale: 1 });
+  fig.group.position.copy(position);
+  fig.armL.rotation.x = -1.15; // brazo en alto, sosteniendo el hilo
+  scene.add(fig.group);
+
+  const kiteGroup = new THREE.Group();
+  const kiteMat = new THREE.MeshStandardMaterial({ color: 0xC9573F, roughness: 0.55, side: THREE.DoubleSide });
+  const kiteShape = new THREE.Shape();
+  kiteShape.moveTo(0, 0.55);
+  kiteShape.lineTo(0.42, 0);
+  kiteShape.lineTo(0, -0.55);
+  kiteShape.lineTo(-0.42, 0);
+  kiteShape.closePath();
+  const kite = new THREE.Mesh(new THREE.ShapeGeometry(kiteShape), kiteMat);
+  kiteGroup.add(kite);
+
+  const bowMat = new THREE.MeshBasicMaterial({ color: 0xF6EBD8 });
+  for (let i = 0; i < 4; i++) {
+    const bow = new THREE.Mesh(new THREE.SphereGeometry(0.045, 6, 6), bowMat);
+    bow.position.set(0, -0.62 - i * 0.2, 0);
+    kiteGroup.add(bow);
+  }
+
+  const kiteBaseY = 22;
+  const kiteBaseX = position.x + 4;
+  const kiteBaseZ = position.z + 3;
+  kiteGroup.position.set(kiteBaseX, kiteBaseY, kiteBaseZ);
+  scene.add(kiteGroup);
+
+  const handAnchor = new THREE.Vector3(position.x - 0.3, position.y + 1.55, position.z);
+  const stringGeo = new THREE.BufferGeometry().setFromPoints([handAnchor, kiteGroup.position]);
+  const stringMat = new THREE.LineBasicMaterial({ color: 0x8A9186 });
+  const string = new THREE.Line(stringGeo, stringMat);
+  scene.add(string);
+
+  return {
+    update(delta, elapsed) {
+      kiteGroup.position.y = kiteBaseY + Math.sin(elapsed * 0.6) * 1.4;
+      kiteGroup.position.x = kiteBaseX + Math.sin(elapsed * 0.35) * 1.1;
+      kiteGroup.rotation.z = Math.sin(elapsed * 0.6) * 0.16;
+      kiteGroup.rotation.x = Math.PI * 0.07;
+      const posAttr = string.geometry.attributes.position;
+      posAttr.setXYZ(0, handAnchor.x, handAnchor.y, handAnchor.z);
+      posAttr.setXYZ(1, kiteGroup.position.x, kiteGroup.position.y, kiteGroup.position.z);
+      posAttr.needsUpdate = true;
+    },
+  };
+}
+
+/** Auto estacionado, muy simplificado: caja para la carrocería, caja más
+ * pequeña y oscura para la cabina/vidrios, y cuatro ruedas cilíndricas. */
+function buildCar(x, z, color, rotationY) {
+  const group = new THREE.Group();
+  const bodyMat = new THREE.MeshStandardMaterial({ color, roughness: 0.4, metalness: 0.35 });
+  const glassMat = new THREE.MeshStandardMaterial({ color: 0x2A3A3A, roughness: 0.2, metalness: 0.6 });
+  const wheelMat = new THREE.MeshStandardMaterial({ color: 0x1C1C1C, roughness: 0.85 });
+
+  const body = new THREE.Mesh(new THREE.BoxGeometry(4.2, 1.1, 1.9), bodyMat);
+  body.position.set(0, 0.75, 0);
+  body.castShadow = true;
+  body.receiveShadow = true;
+  group.add(body);
+
+  const cabin = new THREE.Mesh(new THREE.BoxGeometry(2.1, 0.72, 1.68), glassMat);
+  cabin.position.set(-0.15, 1.48, 0);
+  cabin.castShadow = true;
+  group.add(cabin);
+
+  const wheelGeo = new THREE.CylinderGeometry(0.38, 0.38, 0.32, 12);
+  [[-1.4, -1.0], [-1.4, 1.0], [1.4, -1.0], [1.4, 1.0]].forEach(([wx, wz]) => {
+    const wheel = new THREE.Mesh(wheelGeo, wheelMat);
+    wheel.rotation.z = Math.PI / 2;
+    wheel.position.set(wx, 0.38, wz);
+    group.add(wheel);
+  });
+
+  group.position.set(x, 0, z);
+  group.rotation.y = rotationY;
+  scene.add(group);
+}
+
+/** Coloca varios autos dentro del lote de parqueo, en dos filas que
+ * siguen las líneas pintadas de la textura de asfalto, dejando un
+ * margen amplio para no invadir la plaza de la entrada principal. */
+function buildParkedCars(xParqueo, parqueoWidth, bandDepth) {
+  const bodyColors = [0x2F4A45, 0x8A2F2F, 0x555A63, 0xB9822E, 0x37423A, 0x6E6A5C, 0x3D5A73];
+  const left = xParqueo - parqueoWidth / 2 + 16;
+  const right = xParqueo + parqueoWidth / 2 - 16;
+  const cols = [left, left + (right - left) * 0.33, left + (right - left) * 0.66, right];
+  const rows = [bandDepth * 0.34, bandDepth * 0.66, bandDepth * 0.92];
+
+  let i = 0;
+  rows.forEach((z, rowIdx) => {
+    cols.forEach((x, colIdx) => {
+      // Se dejan un par de espacios vacíos para que no se vea "empacado".
+      if (rowIdx === 1 && colIdx === 2) return;
+      if (rowIdx === 2 && colIdx === 0) return;
+      buildCar(x, z, bodyColors[i % bodyColors.length], colIdx % 2 === 0 ? 0 : Math.PI);
+      i++;
+    });
+  });
+}
+
+/**
+ * Ensambla toda la "vida" decorativa de la escena y devuelve el arreglo
+ * de criaturas animadas para que animate() las actualice cada cuadro.
+ */
+function buildLife({ xTeatro, xParqueo, teatroWidth, parqueoWidth, bandDepth, zVerdeStart, zVerdeEnd, halfW }) {
+  const creatures = [];
+
+  // --- Autos estacionados en el parqueo (estáticos, sin costo por cuadro) ---
+  buildParkedCars(xParqueo, parqueoWidth, bandDepth);
+
+  // --- Familia paseando en el área verde: dos adultos y un niño, en
+  //     órbitas concéntricas con radios y fases ligeramente distintos
+  //     para que no caminen "en fila india" perfecta. ---
+  const verdeCenter = new THREE.Vector3(-10, 0, zVerdeStart + (zVerdeEnd - zVerdeStart) * 0.55);
+  creatures.push(addLoopWalker({ center: verdeCenter, radius: 46, speed: 0.075, phase: 0, shirtColor: 0x2F4A45, pantsColor: 0x35322C, scale: 1 }));
+  creatures.push(addLoopWalker({ center: verdeCenter, radius: 46, speed: 0.075, phase: 0.28, shirtColor: 0x8A5A63, pantsColor: 0x3A3F3A, scale: 0.95 }));
+  creatures.push(addLoopWalker({ center: verdeCenter, radius: 40, speed: 0.11, phase: 0.6, shirtColor: 0xB9822E, pantsColor: 0x2F4A45, scale: 0.62 })); // niño
+
+  // --- El perro de la familia, trotando en una órbita más cerrada ---
+  creatures.push(addDogWalker({ center: verdeCenter, radius: 34, speed: 0.19, phase: 1.4, scale: 0.8 }));
+
+  // --- Otra persona caminando sola, al otro extremo del área verde ---
+  const soloCenter = new THREE.Vector3(55, 0, zVerdeStart + (zVerdeEnd - zVerdeStart) * 0.3);
+  creatures.push(addLoopWalker({ center: soloCenter, radius: 22, speed: -0.09, phase: 2.1, shirtColor: 0x3D5A73, pantsColor: 0x2E2B26, scale: 1.02 }));
+
+  // --- Alguien volando una cometa, cerca del fondo del área verde ---
+  const kitePos = new THREE.Vector3(60, 0, zVerdeEnd - 28);
+  creatures.push(buildKiteFlyer(kitePos));
+
+  // --- Un par de personas de pie cerca de la entrada / taquilla ---
+  creatures.push(addIdleFigure({ position: new THREE.Vector3(-7, 0, 11), rotationY: 0.5, shirtColor: 0x6E4C17, pantsColor: 0x3A3F3A, scale: 1, phase: 0 }));
+  creatures.push(addIdleFigure({ position: new THREE.Vector3(6.5, 0, 9.5), rotationY: -0.4, shirtColor: 0x1F5C4E, pantsColor: 0x35322C, scale: 0.97, phase: 1.8 }));
+
+  animatedCreatures = animatedCreatures.concat(creatures);
+}
+
 function registerSelectable(id, meshes, groupOrMesh) {
   meshes.forEach((m) => {
     if (!m.userData.selectId) m.userData.selectId = id;
@@ -987,6 +1287,8 @@ function onResize() {
   renderer.setSize(holder.clientWidth, holder.clientHeight);
 }
 
+const sceneClock = new THREE.Clock();
+
 function animate() {
   requestAnimationFrame(animate);
   updateCameraAnim();
@@ -994,6 +1296,9 @@ function animate() {
     highlightRing.rotation.z += 0.006;
     highlightRing.material.opacity = 0.65 + Math.sin(performance.now() * 0.003) * 0.2;
   }
+  const delta = Math.min(sceneClock.getDelta(), 0.1); // limita saltos si la pestaña estuvo en segundo plano
+  const elapsed = sceneClock.getElapsedTime();
+  animatedCreatures.forEach((c) => c.update(delta, elapsed));
   controls.update();
   renderer.render(scene, camera);
 }
