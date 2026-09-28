@@ -649,3 +649,43 @@ a { color: var(--accent); }
   .side-nav-scroll { padding: 12px 12px 10px; }
   .nav-footer { margin-top: 12px; padding-top: 10px; }
 }
+
+
+/* Oppo A32 y móviles similares */
+@media (max-width: 390px) {
+  .topbar-title h1 {
+    font-size: 13px;
+  }
+
+  .ghost-btn {
+    font-size: 11px;
+    padding: 7px 9px;
+  }
+
+  .side-nav,
+  .info-panel {
+    width: 92vw;
+  }
+
+  .panel-title {
+    font-size: 16px;
+  }
+}
+
+
+/* Redmi Note 11 */
+@media (max-width: 400px) {
+  .side-nav,
+  .info-panel {
+    width: 90vw;
+  }
+}
+
+
+/* Motorola Edge 20 Pro y similares */
+@media (max-width: 420px) {
+  .s*de-nav,
+  .info-panel {
+    width:85vw;
+  }
+}
