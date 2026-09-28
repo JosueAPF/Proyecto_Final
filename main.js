@@ -1,15 +1,18 @@
 /*
-  josue porras : 0900-15-18671
+  Brenda Susana Echeverria Nova
+  Reivini Nicolle Figueroa Vides
+  Allan Francisco Figueroa Vides
+  Josue Abraham Porras Figueroa
+
 
 */
-
-
 
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
 /* =====================================================================
-   1. dimensiones
+   1. CONSTANTES DEL MODELO MATEMÁTICO
+   Estas cifras son las mismas que aparecen en el informe: dimensiones
    del terreno, valor de diseño x = 75 m, y datos del tanque cilíndrico.
    Mantenerlas centralizadas evita "números mágicos" repetidos en el
    código y permite recalcular todo si un valor cambia.
