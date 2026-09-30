@@ -33,7 +33,7 @@
       <svg viewBox="0 0 24 24" width="20" height="20"><path d="M3 6h18M3 12h18M3 18h18" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/></svg>
     </button>
     <div class="topbar-title">
-      <span class="eyebrow">Universidad Mariano Gálvez de Guatemala</span>
+      <span class="eyebrow">Universidad Mariano Gálvez de Guatemala </span>
       <h1>Modelado Matemático Aplicado al Diseño de un Teatro</h1>
     </div>
     <button class="icon-btn" id="btn-toggle-panel" aria-label="Mostrar panel de información" title="Panel de información">
@@ -98,7 +98,19 @@
           <span class="legend-item"><i style="background:#7c9473"></i>Área verde</span>
           <span class="legend-item"><i style="background:#aeb4b8"></i>Tanque</span>
         </div>
-        <button class="ghost-btn" id="btn-reset-view">Vista general</button>
+        <div class="viewport-actions">
+          <div class="weather-toggle" role="group" aria-label="Clima de la escena">
+            <button type="button" class="weather-btn active" id="btn-weather-sunny" aria-pressed="true" title="Clima soleado">
+              <svg viewBox="0 0 24 24" width="16" height="16"><circle cx="12" cy="12" r="4.2" fill="none" stroke="currentColor" stroke-width="1.7"/><path d="M12 2.5v3M12 18.5v3M21.5 12h-3M5.5 12h-3M18.4 5.6l-2.1 2.1M7.7 16.3l-2.1 2.1M18.4 18.4l-2.1-2.1M7.7 7.7 5.6 5.6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg>
+              <span>Soleado</span>
+            </button>
+            <button type="button" class="weather-btn" id="btn-weather-rainy" aria-pressed="false" title="Clima lluvioso">
+              <svg viewBox="0 0 24 24" width="16" height="16"><path d="M6.5 10.2a4.2 4.2 0 0 1 8.2-1.6 3.6 3.6 0 0 1 1 7.06H6.8A3.6 3.6 0 0 1 6.5 10.2Z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M8.5 18.5 7.5 20.5M12 18.5l-1 2M15.5 18.5l-1 2" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+              <span>Lluvioso</span>
+            </button>
+          </div>
+          <button class="ghost-btn" id="btn-reset-view">Vista general</button>
+        </div>
       </div>
 
       <p class="viewport-hint">Haz clic o toca un elemento del terreno para ver su modelo matemático →</p>

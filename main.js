@@ -1,3 +1,4 @@
+
 /*
   Brenda Susana Echeverria Nova
   Reivini Nicolle Figueroa Vides
@@ -6,6 +7,7 @@
 
 
 */
+  
 
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
@@ -111,7 +113,7 @@ const contentData = {
       ],
       highlightRow: -1,
     },
-    callout: "Nota de representación: el visor 3D prioriza fidelidad visual a la Figura 1 del informe. El modelo algebraico AP(x) = 200x trata el parqueo como si su lado mayor coincidiera con los 200 m del terreno — una simplificación habitual para reducir el área a una sola variable x, independiente de la forma exacta con que se dibuje el lote.<br><br>Verificación: 10,000 + 15,000 + 35,000 = <b>60,000 m²</b>, exactamente el área del terreno.",
+    
   },
 
   parqueo: {
@@ -122,7 +124,7 @@ const contentData = {
     body: [
       "El parqueo es un rectángulo cuyo largo es el ancho completo del terreno (200 m) y cuyo ancho es la variable de diseño <b>x</b>.",
       "La pendiente 200 tiene una lectura directa: cada metro adicional de ancho asignado al parqueo aporta 200 m² de superficie.",
-      "El valor de diseño x = 75 m se obtuvo a partir de un estándar de planificación: 2,000 espectadores ÷ 4 = 500 espacios de estacionamiento, y 500 × 30 m² por vehículo = 15,000 m². Igualando <b>200x = 15,000</b> se despeja x = 75 m.",
+      
     ],
     formulas: [
       { latex: "AP(x) = 200x", caption: "Área de parqueo en función del ancho x" },
@@ -175,9 +177,8 @@ const contentData = {
     kicker: "Función constante",
     title: "Perímetro del parque",
     body: [
-      "Aquí <strong>parque</strong> se refiere al terreno completo asignado al proyecto —200 m × 300 m—, no a una de sus zonas internas. Es el mismo perímetro del lote, sin importar cómo se reparta entre teatro, parqueo y área verde.",
-      "Como las dimensiones del terreno son fijas, este perímetro <strong>no depende de x</strong>: es una función constante. Distribuir de otra forma el ancho interno del parqueo no altera en absoluto el contorno exterior del lote.",
-      "Para cualquier valor de diseño, incluido x = 75 m, P(75) = 1,000 m: el perímetro del parque no cambia con la distribución interna de sus zonas.",
+      "terreno completo asignado al proyecto —200 m × 300 m—,",
+      
     ],
     formulas: [
       { latex: "P(x) = 2(200 + 300) = 1{,}000\\text{ m}", caption: "Perímetro del terreno completo (el parque), constante para todo x en su dominio" },
@@ -522,6 +523,11 @@ function selectContentWithCleanup(id, opts) {
    ===================================================================== */
 
 let scene, camera, renderer, controls, raycaster, pointer;
+let hemiLight, sunLight;           // referencias para poder animar el clima
+let rainPoints = null;             // sistema de partículas de lluvia (se crea una sola vez)
+let currentWeather = "sunny";      // "sunny" | "rainy"
+let currentLampLevel = 0;          // 0 = postes apagados, 1 = encendidos (se anima junto al clima)
+let lampPosts = [];                // { bulb, halo, light } de cada poste, para prenderlos/apagarlos juntos
 const pointerDownPos = new THREE.Vector2();
 let selectableObjects = [];  // meshes/objetos que responden a clic
 let animatedCreatures = [];  // figuras decorativas (personas, perro, cometa) con vida propia por cuadro
@@ -547,6 +553,44 @@ const CAMERA_VIEWS = {
   entrance_group: { pos: new THREE.Vector3(45, 30, -10), target: new THREE.Vector3(0, 4, 8) },
   theatre_building: { pos: new THREE.Vector3(-165, 78, 150), target: new THREE.Vector3(-60, 14, 62.5) },
 };
+
+// =====================================================================
+// CLIMA DINÁMICO
+// Dos presets (soleado / lluvioso) que afectan luz solar, luz ambiente,
+// color del cielo y densidad de la niebla. El cambio entre uno y otro
+// se anima suavemente (ver weatherAnim + updateWeatherAnim), igual que
+// la cámara se anima al seleccionar un objeto.
+// =====================================================================
+const WEATHER_PRESETS = {
+  sunny: {
+    sky: new THREE.Color(0xEFEDE4),
+    fogColor: new THREE.Color(0xEFEDE4),
+    fogNear: 420,
+    fogFar: 900,
+    sunColor: new THREE.Color(0xFFF6E3),
+    sunIntensity: 1.15,
+    hemiSky: new THREE.Color(0xF3F1E6),
+    hemiGround: new THREE.Color(0x8B8D7E),
+    hemiIntensity: 0.75,
+    rainOpacity: 0,
+    lamp: 0, // postes de luz apagados con sol
+  },
+  rainy: {
+    sky: new THREE.Color(0xA9AFAF),
+    fogColor: new THREE.Color(0xA9AFAF),
+    fogNear: 130,
+    fogFar: 460,
+    sunColor: new THREE.Color(0xC7D0D2),
+    sunIntensity: 0.32,
+    hemiSky: new THREE.Color(0x9AA3A6),
+    hemiGround: new THREE.Color(0x6B6F6D),
+    hemiIntensity: 0.55,
+    rainOpacity: 0.55,
+    lamp: 1, // postes de luz encendidos: cualquier clima que no sea soleado
+  },
+};
+
+const weatherAnim = { active: false, t0: 0, duration: 1400, from: null, to: null };
 
 function initThree() {
   const holder = document.getElementById("canvas-holder");
@@ -577,24 +621,27 @@ function initThree() {
   controls.update();
 
   // --- Luces: ambiente suave + sol direccional con sombra ---
-  scene.add(new THREE.HemisphereLight(0xF3F1E6, 0x8B8D7E, 0.75));
-  const sun = new THREE.DirectionalLight(0xFFF6E3, 1.15);
-  sun.position.set(180, 260, 120);
-  sun.castShadow = true;
-  sun.shadow.mapSize.set(2048, 2048);
-  sun.shadow.camera.left = -220;
-  sun.shadow.camera.right = 220;
-  sun.shadow.camera.top = 220;
-  sun.shadow.camera.bottom = -220;
-  sun.shadow.camera.far = 700;
-  sun.shadow.bias = -0.0006;
-  scene.add(sun);
+  hemiLight = new THREE.HemisphereLight(0xF3F1E6, 0x8B8D7E, 0.75);
+  scene.add(hemiLight);
+  sunLight = new THREE.DirectionalLight(0xFFF6E3, 1.15);
+  sunLight.position.set(180, 260, 120);
+  sunLight.castShadow = true;
+  sunLight.shadow.mapSize.set(2048, 2048);
+  sunLight.shadow.camera.left = -220;
+  sunLight.shadow.camera.right = 220;
+  sunLight.shadow.camera.top = 220;
+  sunLight.shadow.camera.bottom = -220;
+  sunLight.shadow.camera.far = 700;
+  sunLight.shadow.bias = -0.0006;
+  scene.add(sunLight);
 
   raycaster = new THREE.Raycaster();
   pointer = new THREE.Vector2();
 
   buildTerrain();
   buildHighlightRing();
+  buildRain();
+  wireWeatherUI();
 
   // Distinguimos un "clic" real de un arrastre de OrbitControls: solo se
   // interpreta como selección si el puntero se movió muy poco entre
@@ -630,6 +677,36 @@ function makeParkingTexture() {
   const tex = new THREE.CanvasTexture(c);
   tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
   return tex;
+}
+
+/**
+ * Altura del relieve suave del área verde en el punto (x, z) del mundo.
+ * Combina unas pocas ondas seno/coseno con una caída radial (falloff)
+ * hacia los bordes de la franja, así que el relieve es 0 fuera del área
+ * verde y crece suavemente hacia el centro — nunca hay un "escalón"
+ * brusco contra el parqueo, el teatro o el perímetro.
+ * Se reutiliza para: la malla de relieve, la fuente, las flores y los
+ * árboles nuevos, para que todos se asienten sobre el mismo terreno.
+ */
+function terrainHeightAt(x, z) {
+  const zStart = MODEL.terrenoLargo - MODEL.verdeArea / MODEL.terrenoAncho; // 125
+  const zEnd = MODEL.terrenoLargo;                                          // 300
+  const cz = (zStart + zEnd) / 2;
+  const halfW = MODEL.terrenoAncho / 2;
+  const rx = halfW - 14;
+  const rz = (zEnd - zStart) / 2 - 14;
+  const nx = x / rx;
+  const nz = (z - cz) / rz;
+  const d = Math.sqrt(nx * nx + nz * nz);
+  if (d >= 1) return 0;
+  const falloff = (1 - d * d) * (1 - d * d); // suave, sin bordes duros
+  // Dos ondas remapeadas a [0,1] antes de combinarlas: así el relieve
+  // son siempre montículos hacia arriba, nunca hondonadas por debajo
+  // de la franja plana original (evita que la malla quede "enterrada").
+  const waveA = (Math.sin(x * 0.045 + 1.3) * Math.cos(z * 0.05) + 1) / 2;
+  const waveB = (Math.sin(x * 0.11 - z * 0.08 + 2.1) + 1) / 2;
+  const mound = waveA * 0.65 + waveB * 0.35;
+  return mound * falloff * 0.62; // amplitud máxima ≈ 0.6 m — "leve" a propósito
 }
 
 /** Construye el terreno completo: franjas, edificio, tanque, entrada y perímetro. */
@@ -686,6 +763,14 @@ function buildTerrain() {
   // Puramente decorativo: no son seleccionables ni afectan el raycasting,
   // igual que los árboles del área verde.
   buildLife({ xTeatro, xParqueo, teatroWidth, parqueoWidth, bandDepth, zVerdeStart, zVerdeEnd, halfW });
+
+  // --- Mejoras del jardín: relieve suave, fuente, flores y árboles
+  //     ornamentales. Se AGREGAN sobre lo anterior, sin quitar nada. ---
+  buildGardenEnhancements({ zVerdeStart, zVerdeEnd, halfW });
+
+  // --- Postes de luz: siempre visibles, su farol solo se enciende
+  //     cuando el clima no es soleado (ver WEATHER_PRESETS / applyLampLevel). ---
+  buildLampPosts({ xParqueo, parqueoWidth });
 }
 
 /** Crea una franja rectangular del terreno; si id no es null, es seleccionable. */
@@ -940,7 +1025,7 @@ function addLoopWalker({ center, radius, speed, phase = 0, shirtColor, pantsColo
       const dx = -Math.sin(state.angle), dz = Math.cos(state.angle); // tangente = dirección de avance
       const strideRate = 6.2 / scale;
       const bob = Math.abs(Math.sin(state.angle * strideRate)) * 0.05 * scale;
-      fig.group.position.set(x, bob, z);
+      fig.group.position.set(x, bob + terrainHeightAt(x, z), z);
       fig.group.rotation.y = Math.atan2(dx, dz);
       const swing = Math.sin(state.angle * strideRate) * 0.5;
       fig.legL.rotation.x = swing;
@@ -1019,7 +1104,7 @@ function addDogWalker({ center, radius, speed, phase = 0, scale = 0.85 }) {
       const z = center.z + Math.sin(state.angle) * radius;
       const dx = -Math.sin(state.angle), dz = Math.cos(state.angle);
       const trot = state.angle * 9;
-      dog.group.position.set(x, Math.abs(Math.sin(trot)) * 0.045 * scale, z);
+      dog.group.position.set(x, Math.abs(Math.sin(trot)) * 0.045 * scale + terrainHeightAt(x, z), z);
       dog.group.rotation.y = Math.atan2(dx, dz);
       const swing = Math.sin(trot) * 0.6;
       dog.legs[0].rotation.x = swing;   // delantera izquierda
@@ -1174,6 +1259,277 @@ function buildLife({ xTeatro, xParqueo, teatroWidth, parqueoWidth, bandDepth, zV
   animatedCreatures = animatedCreatures.concat(creatures);
 }
 
+/* =====================================================================
+   MEJORAS DEL JARDÍN — relieve de terreno, fuente, flores y árboles
+   ornamentales. Todo esto se AGREGA sobre el área verde existente: no
+   modifica la zona seleccionable (`ground_verde`), los árboles originales
+   de scatterTrees(), ni a las personas/perro/cometa de buildLife(). Solo
+   ajusta su altura (terrainHeightAt) para que "se paren" bien sobre el
+   nuevo relieve.
+   ===================================================================== */
+
+/** Malla decorativa de relieve: un plano subdividido, desplazado en Y con
+ * terrainHeightAt(), apoyado justo encima de la franja plana y
+ * seleccionable del área verde (que sigue existiendo, intacta, debajo). */
+function buildGreenRelief() {
+  const zStart = MODEL.terrenoLargo - MODEL.verdeArea / MODEL.terrenoAncho; // 125
+  const zEnd = MODEL.terrenoLargo;                                          // 300
+  const zCenter = (zStart + zEnd) / 2;
+  const width = MODEL.terrenoAncho - 4;
+  const depth = (zEnd - zStart) - 4;
+
+  const geo = new THREE.PlaneGeometry(width, depth, 48, 40);
+  const posAttr = geo.attributes.position;
+  for (let i = 0; i < posAttr.count; i++) {
+    const localX = posAttr.getX(i);
+    const localY = posAttr.getY(i);
+    const worldX = localX;
+    const worldZ = zCenter - localY; // ver nota de rotación más abajo
+    posAttr.setZ(i, terrainHeightAt(worldX, worldZ));
+  }
+  geo.computeVertexNormals();
+
+  const mat = new THREE.MeshStandardMaterial({ color: 0x7FA079, roughness: 0.92 });
+  const relief = new THREE.Mesh(geo, mat);
+  // rotation.x = -90° hace que el eje local Z (donde desplazamos la
+  // altura) pase a ser el eje mundial Y (arriba), y el local Y pase a
+  // ser −Z mundial — por eso worldZ = zCenter − localY arriba.
+  relief.rotation.x = -Math.PI / 2;
+  relief.position.set(0, 0.27, zCenter);
+  relief.receiveShadow = true;
+  scene.add(relief);
+}
+
+/** Fuente circular con agua animada (pulso suave del chorro central). */
+function buildFountain(x, z) {
+  const baseY = 0.27 + terrainHeightAt(x, z);
+  const stoneMat = new THREE.MeshStandardMaterial({ color: 0xD8D2C2, roughness: 0.85 });
+  const waterMat = new THREE.MeshStandardMaterial({ color: 0x3D6E7A, roughness: 0.15, metalness: 0.35 });
+  const jetMat = new THREE.MeshStandardMaterial({ color: 0xCDEFF2, roughness: 0.1, transparent: true, opacity: 0.75 });
+
+  const rim = new THREE.Mesh(new THREE.CylinderGeometry(4.6, 4.9, 0.6, 32), stoneMat);
+  rim.position.set(x, baseY + 0.3, z);
+  rim.castShadow = true;
+  rim.receiveShadow = true;
+  scene.add(rim);
+
+  const basin = new THREE.Mesh(new THREE.CylinderGeometry(4.15, 4.15, 0.42, 32), waterMat);
+  basin.position.set(x, baseY + 0.44, z);
+  scene.add(basin);
+
+  const tier = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.8, 1.1, 20), stoneMat);
+  tier.position.set(x, baseY + 0.95, z);
+  tier.castShadow = true;
+  scene.add(tier);
+
+  const jetBaseY = baseY + 2.2;
+  const jet = new THREE.Mesh(new THREE.ConeGeometry(0.32, 1.7, 12), jetMat);
+  jet.position.set(x, jetBaseY, z);
+  scene.add(jet);
+
+  return {
+    update(delta, elapsed) {
+      const pulse = 1 + Math.sin(elapsed * 2.4) * 0.14;
+      jet.scale.set(1, pulse, 1);
+      jet.position.y = jetBaseY + Math.sin(elapsed * 2.4) * 0.15;
+    },
+  };
+}
+
+/**
+ * Macizo (patch) de flores: pequeños icosaedros de colores distribuidos
+ * al azar (con semilla fija, para que sea reproducible) dentro de un
+ * anillo entre innerRadius y radius alrededor de `center`. Usa un
+ * InstancedMesh por color, así que aunque haya muchas flores, cada color
+ * se dibuja en una sola llamada — muy liviano.
+ */
+function buildFlowerPatch(center, radius, count, colorPalette, seed, innerRadius = 0) {
+  const rand = mulberry32(seed);
+  const geo = new THREE.IcosahedronGeometry(0.16, 0);
+  const dummy = new THREE.Object3D();
+  const perColor = Math.ceil(count / colorPalette.length);
+
+  colorPalette.forEach((color) => {
+    const mat = new THREE.MeshStandardMaterial({ color, roughness: 0.6 });
+    const inst = new THREE.InstancedMesh(geo, mat, perColor);
+    for (let i = 0; i < perColor; i++) {
+      const a = rand() * Math.PI * 2;
+      const r = innerRadius + Math.sqrt(rand()) * (radius - innerRadius);
+      const x = center.x + Math.cos(a) * r;
+      const z = center.z + Math.sin(a) * r;
+      const y = 0.32 + terrainHeightAt(x, z) + rand() * 0.04;
+      dummy.position.set(x, y, z);
+      dummy.rotation.set(rand() * Math.PI, rand() * Math.PI, rand() * Math.PI);
+      const s = 0.7 + rand() * 0.6;
+      dummy.scale.set(s, s, s);
+      dummy.updateMatrix();
+      inst.setMatrixAt(i, dummy.matrix);
+    }
+    inst.castShadow = true;
+    inst.receiveShadow = true;
+    scene.add(inst);
+  });
+}
+
+/** Árboles ornamentales de copa redonda (caducifolios), en una paleta
+ * verde/dorada/rojiza — especies DISTINTAS a las coníferas ya sembradas
+ * por scatterTrees(). Se agregan aparte, con su propia semilla, así que
+ * los árboles originales no se tocan ni se reposicionan. */
+function scatterOrnamentalTrees(zStart, zEnd, halfW) {
+  const rand = mulberry32(19); // semilla distinta a la de scatterTrees (7)
+  const trunkMat = new THREE.MeshStandardMaterial({ color: 0x6B5A3E, roughness: 1 });
+  const canopyPalette = [0x8AA662, 0xC9A227, 0xA1462F]; // verde, dorado, rojizo — como en la referencia
+  for (let i = 0; i < 16; i++) {
+    const x = (rand() * 2 - 1) * (halfW - 12);
+    const z = zStart + 12 + rand() * (zEnd - zStart - 24);
+    const s = 0.8 + rand() * 0.7;
+    const y0 = 0.27 + terrainHeightAt(x, z);
+    const canopyMat = new THREE.MeshStandardMaterial({
+      color: canopyPalette[Math.floor(rand() * canopyPalette.length)],
+      roughness: 0.9,
+    });
+
+    const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.3 * s, 0.4 * s, 2.0 * s, 6), trunkMat);
+    trunk.position.set(x, y0 + 1.0 * s, z);
+    trunk.castShadow = true;
+    scene.add(trunk);
+
+    // Copa redondeada (caducifolio), a diferencia del cono de las coníferas.
+    const canopy = new THREE.Mesh(new THREE.IcosahedronGeometry(1.7 * s, 1), canopyMat);
+    canopy.position.set(x, y0 + 2.9 * s, z);
+    canopy.castShadow = true;
+    scene.add(canopy);
+  }
+}
+
+/** Ensambla todas las mejoras del jardín. La fuente se agrega a
+ * `animatedCreatures` para que su chorro de agua se anime cada cuadro,
+ * igual que la gente y el perro. */
+function buildGardenEnhancements({ zVerdeStart, zVerdeEnd, halfW }) {
+  buildGreenRelief();
+  scatterOrnamentalTrees(zVerdeStart, zVerdeEnd, halfW);
+
+  // Fuente central, lejos de las rutas de paseo de la familia y del
+  // caminante solitario (ver comentario de posiciones en buildLife).
+  const fountainCenter = new THREE.Vector3(-70, 0, 235);
+  const fountain = buildFountain(fountainCenter.x, fountainCenter.z);
+  animatedCreatures.push(fountain);
+
+  // Anillo de flores alrededor de la fuente (fuera de su borde de piedra)
+  // y dos macizos adicionales en esquinas tranquilas del área verde.
+  buildFlowerPatch(fountainCenter, 9.5, 90, [0xC9577A, 0x8A5FA8, 0xE0B23A, 0xF4F1E6], 21, 5.5);
+  buildFlowerPatch(new THREE.Vector3(-82, 0, 288), 6, 46, [0xC9577A, 0xE0B23A], 34);
+  buildFlowerPatch(new THREE.Vector3(80, 0, 140), 6, 46, [0x8A5FA8, 0xF4F1E6], 47);
+}
+
+/* =====================================================================
+   POSTES DE LUZ
+   El poste (base, tubo, farol) SIEMPRE es visible, de día o de noche —
+   es mobiliario urbano, no debería desaparecer. Lo único que se anima
+   es el encendido: intensidad de la luz puntual, brillo del foco y
+   halo cálido alrededor, todo atado a `currentLampLevel` (0 = apagado
+   con sol, 1 = encendido con cualquier otro clima). Se agrega sobre la
+   escena existente, sin tocar el parqueo, el jardín ni la entrada.
+   ===================================================================== */
+
+let glowTexture = null; // textura de resplandor compartida por todos los postes
+
+/** Textura radial suave (blanco cálido → transparente) para el halo. */
+function makeGlowTexture() {
+  const c = document.createElement("canvas");
+  c.width = 64; c.height = 64;
+  const ctx = c.getContext("2d");
+  const grad = ctx.createRadialGradient(32, 32, 0, 32, 32, 32);
+  grad.addColorStop(0, "rgba(255,214,140,0.95)");
+  grad.addColorStop(1, "rgba(255,214,140,0)");
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, 64, 64);
+  return new THREE.CanvasTexture(c);
+}
+
+/** Un poste completo: base, tubo, farol (con foco emisivo), halo tipo
+ * sprite y una PointLight real. Devuelve las piezas que cambian con el
+ * clima para registrarlas en `lampPosts`. */
+function buildLampPost(x, z) {
+  if (!glowTexture) glowTexture = makeGlowTexture();
+
+  const group = new THREE.Group();
+  const metalMat = new THREE.MeshStandardMaterial({ color: 0x2E2F2C, roughness: 0.55, metalness: 0.4 });
+  const capMat = new THREE.MeshStandardMaterial({ color: 0x23241F, roughness: 0.5, metalness: 0.5 });
+  // El foco empieza "apagado" (emissiveIntensity 0); applyLampLevel() lo enciende.
+  const bulbMat = new THREE.MeshStandardMaterial({
+    color: 0x3A3220, emissive: 0xFFC77A, emissiveIntensity: 0, roughness: 0.3,
+  });
+
+  const baseY = terrainHeightAt(x, z) + 0.27;
+  const poleHeight = 6.2;
+
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.28, 0.4, 10), capMat);
+  base.position.set(x, baseY + 0.2, z);
+  base.castShadow = true;
+  group.add(base);
+
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.12, poleHeight, 8), metalMat);
+  pole.position.set(x, baseY + 0.4 + poleHeight / 2, z);
+  pole.castShadow = true;
+  group.add(pole);
+
+  const lampY = baseY + 0.4 + poleHeight;
+
+  const cap = new THREE.Mesh(new THREE.ConeGeometry(0.42, 0.5, 10), capMat);
+  cap.position.set(x, lampY + 0.35, z);
+  cap.castShadow = true;
+  group.add(cap);
+
+  const bulb = new THREE.Mesh(new THREE.SphereGeometry(0.26, 12, 10), bulbMat);
+  bulb.position.set(x, lampY, z);
+  group.add(bulb);
+
+  const halo = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: glowTexture, color: 0xFFD58A, transparent: true, opacity: 0,
+    depthWrite: false, blending: THREE.AdditiveBlending,
+  }));
+  halo.scale.set(3, 3, 1);
+  halo.position.set(x, lampY, z);
+  group.add(halo);
+
+  // Sin sombra propia (castShadow=false por defecto): son muchas luces
+  // pequeñas y decorativas, no vale la pena el costo de recalcular sombras.
+  const light = new THREE.PointLight(0xFFC77A, 0, 17, 2);
+  light.position.set(x, lampY - 0.15, z);
+  group.add(light);
+
+  scene.add(group);
+  return { bulb, halo, light };
+}
+
+/** Aplica el nivel de encendido (0..1) a todos los postes de una vez. */
+function applyLampLevel(level) {
+  lampPosts.forEach(({ bulb, halo, light }) => {
+    bulb.material.emissiveIntensity = level * 1.6;
+    halo.material.opacity = level * 0.6;
+    light.intensity = level * 1.3;
+  });
+}
+
+/** Coloca los postes: dos filas en el parqueo, dos flanqueando la
+ * entrada, y dos más como "luces de jardín" en el área verde — todos en
+ * posiciones que no chocan con los autos, la fuente ni las rutas donde
+ * caminan las personas/el perro. */
+function buildLampPosts({ xParqueo, parqueoWidth }) {
+  const left = xParqueo - parqueoWidth / 2 + 10;
+  const right = xParqueo + parqueoWidth / 2 - 10;
+  const positions = [
+    [left, 15], [right, 15], [left, 110], [right, 110],   // parqueo
+    [-16, 2], [16, 2],                                     // entrada
+    [75, 150], [-85, 150],                                 // jardín
+  ];
+  positions.forEach(([x, z]) => {
+    lampPosts.push(buildLampPost(x, z));
+  });
+  applyLampLevel(currentLampLevel); // arrancan apagados (clima inicial: soleado)
+}
+
 function registerSelectable(id, meshes, groupOrMesh) {
   meshes.forEach((m) => {
     if (!m.userData.selectId) m.userData.selectId = id;
@@ -1190,6 +1546,160 @@ function buildHighlightRing() {
   highlightRing.rotation.x = -Math.PI / 2;
   highlightRing.visible = false;
   scene.add(highlightRing);
+}
+
+/* =====================================================================
+   LLUVIA
+   Un solo THREE.LineSegments con muchos trazos verticales cortos (dos
+   vértices cada uno). Cada cuadro se desplazan hacia abajo "a mano"
+   escribiendo directamente en el arreglo de posiciones — más liviano
+   que crear/destruir miles de objetos.
+   ===================================================================== */
+const RAIN_COUNT = 900;
+const RAIN_BOUNDS = { xMin: -110, xMax: 110, zMin: -20, zMax: 310, yMin: 20, yMax: 150 };
+
+function buildRain() {
+  const positions = new Float32Array(RAIN_COUNT * 2 * 3); // 2 vértices (inicio/fin) por gota
+  const speeds = new Float32Array(RAIN_COUNT);
+  const lengths = new Float32Array(RAIN_COUNT);
+
+  for (let i = 0; i < RAIN_COUNT; i++) {
+    const x = THREE.MathUtils.randFloat(RAIN_BOUNDS.xMin, RAIN_BOUNDS.xMax);
+    const y = THREE.MathUtils.randFloat(RAIN_BOUNDS.yMin, RAIN_BOUNDS.yMax);
+    const z = THREE.MathUtils.randFloat(RAIN_BOUNDS.zMin, RAIN_BOUNDS.zMax);
+    const len = THREE.MathUtils.randFloat(1.6, 3.2);
+    writeDrop(positions, i, x, y, z, len);
+    speeds[i] = THREE.MathUtils.randFloat(70, 110);
+    lengths[i] = len;
+  }
+
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+  const mat = new THREE.LineBasicMaterial({ color: 0xCBD6D8, transparent: true, opacity: 0, depthWrite: false });
+  rainPoints = new THREE.LineSegments(geo, mat);
+  rainPoints.userData.speeds = speeds;
+  rainPoints.userData.lengths = lengths;
+  rainPoints.visible = false;
+  rainPoints.frustumCulled = false; // el volumen de lluvia es más grande que cualquier objeto de la escena
+  scene.add(rainPoints);
+}
+
+function writeDrop(arr, i, x, topY, z, len) {
+  const base = i * 6;
+  arr[base] = x; arr[base + 1] = topY; arr[base + 2] = z;
+  arr[base + 3] = x; arr[base + 4] = topY - len; arr[base + 5] = z;
+}
+
+/** Hace caer cada gota; al tocar el suelo reaparece arriba en una
+ * posición (x, z) nueva, para que la lluvia nunca se vea repetitiva. */
+function updateRain(delta) {
+  if (!rainPoints || !rainPoints.visible) return;
+  const posAttr = rainPoints.geometry.attributes.position;
+  const arr = posAttr.array;
+  const speeds = rainPoints.userData.speeds;
+  const lengths = rainPoints.userData.lengths;
+
+  for (let i = 0; i < RAIN_COUNT; i++) {
+    const base = i * 6;
+    let topY = arr[base + 1] - speeds[i] * delta;
+    let x = arr[base];
+    let z = arr[base + 2];
+    if (topY < 0) {
+      topY = RAIN_BOUNDS.yMax;
+      x = THREE.MathUtils.randFloat(RAIN_BOUNDS.xMin, RAIN_BOUNDS.xMax);
+      z = THREE.MathUtils.randFloat(RAIN_BOUNDS.zMin, RAIN_BOUNDS.zMax);
+    }
+    arr[base] = x; arr[base + 1] = topY; arr[base + 2] = z;
+    arr[base + 3] = x; arr[base + 4] = topY - lengths[i]; arr[base + 5] = z;
+  }
+  posAttr.needsUpdate = true;
+}
+
+/* =====================================================================
+   CONTROL DE CLIMA
+   ===================================================================== */
+
+/** Copia los valores que la escena tiene AHORA MISMO (no el preset), para
+ * que si el usuario cambia de clima a mitad de una transición, la nueva
+ * transición arranque desde donde realmente está la escena, sin saltos. */
+function snapshotCurrentWeather() {
+  return {
+    sky: scene.background.clone(),
+    fogColor: scene.fog.color.clone(),
+    fogNear: scene.fog.near,
+    fogFar: scene.fog.far,
+    sunColor: sunLight.color.clone(),
+    sunIntensity: sunLight.intensity,
+    hemiSky: hemiLight.color.clone(),
+    hemiGround: hemiLight.groundColor.clone(),
+    hemiIntensity: hemiLight.intensity,
+    rainOpacity: rainPoints ? rainPoints.material.opacity : 0,
+    lamp: currentLampLevel,
+  };
+}
+
+function setWeather(mode) {
+  if (mode === currentWeather) return;
+  currentWeather = mode;
+  if (mode === "rainy" && rainPoints) rainPoints.visible = true; // visible ya; la opacidad sube durante la transición
+  weatherAnim.from = snapshotCurrentWeather();
+  weatherAnim.to = WEATHER_PRESETS[mode];
+  weatherAnim.t0 = performance.now();
+  weatherAnim.active = true;
+  updateWeatherButtons();
+}
+
+/** Interpola suavemente entre el clima anterior y el nuevo. Se llama una
+ * vez por cuadro desde animate(), igual que la animación de cámara. */
+function updateWeatherAnim() {
+  if (!weatherAnim.active) return;
+  const elapsed = performance.now() - weatherAnim.t0;
+  const t = Math.min(1, elapsed / weatherAnim.duration);
+  const e = easeInOutCubic(t);
+  const { from, to } = weatherAnim;
+
+  scene.background.copy(from.sky).lerp(to.sky, e);
+  scene.fog.color.copy(from.fogColor).lerp(to.fogColor, e);
+  scene.fog.near = THREE.MathUtils.lerp(from.fogNear, to.fogNear, e);
+  scene.fog.far = THREE.MathUtils.lerp(from.fogFar, to.fogFar, e);
+
+  sunLight.color.copy(from.sunColor).lerp(to.sunColor, e);
+  sunLight.intensity = THREE.MathUtils.lerp(from.sunIntensity, to.sunIntensity, e);
+
+  hemiLight.color.copy(from.hemiSky).lerp(to.hemiSky, e);
+  hemiLight.groundColor.copy(from.hemiGround).lerp(to.hemiGround, e);
+  hemiLight.intensity = THREE.MathUtils.lerp(from.hemiIntensity, to.hemiIntensity, e);
+
+  if (rainPoints) {
+    rainPoints.material.opacity = THREE.MathUtils.lerp(from.rainOpacity, to.rainOpacity, e);
+  }
+
+  currentLampLevel = THREE.MathUtils.lerp(from.lamp, to.lamp, e);
+  applyLampLevel(currentLampLevel);
+
+  if (t >= 1) {
+    weatherAnim.active = false;
+    if (currentWeather === "sunny" && rainPoints) rainPoints.visible = false; // ya llegó a 0 de opacidad
+  }
+}
+
+function updateWeatherButtons() {
+  const sunnyBtn = document.getElementById("btn-weather-sunny");
+  const rainyBtn = document.getElementById("btn-weather-rainy");
+  if (!sunnyBtn || !rainyBtn) return;
+  sunnyBtn.classList.toggle("active", currentWeather === "sunny");
+  sunnyBtn.setAttribute("aria-pressed", String(currentWeather === "sunny"));
+  rainyBtn.classList.toggle("active", currentWeather === "rainy");
+  rainyBtn.setAttribute("aria-pressed", String(currentWeather === "rainy"));
+}
+
+function wireWeatherUI() {
+  const sunnyBtn = document.getElementById("btn-weather-sunny");
+  const rainyBtn = document.getElementById("btn-weather-rainy");
+  if (!sunnyBtn || !rainyBtn) return;
+  sunnyBtn.addEventListener("click", () => setWeather("sunny"));
+  rainyBtn.addEventListener("click", () => setWeather("rainy"));
+  updateWeatherButtons();
 }
 
 /** Aplica un tinte emisivo dorado a los materiales de un objeto seleccionado. */
@@ -1302,6 +1812,8 @@ function animate() {
   const delta = Math.min(sceneClock.getDelta(), 0.1); // limita saltos si la pestaña estuvo en segundo plano
   const elapsed = sceneClock.getElapsedTime();
   animatedCreatures.forEach((c) => c.update(delta, elapsed));
+  updateWeatherAnim();
+  updateRain(delta);
   controls.update();
   renderer.render(scene, camera);
 }

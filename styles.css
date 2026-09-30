@@ -386,6 +386,52 @@ a { color: var(--accent); }
 }
 .ghost-btn:hover { border-color: var(--accent); color: var(--accent-ink); }
 
+/* --- Agrupa el control de clima y "Vista general" en el lado derecho --- */
+.viewport-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  pointer-events: auto;
+}
+
+/* --- Control de clima: segmented control de dos opciones --- */
+.weather-toggle {
+  display: flex;
+  background: rgba(252, 251, 248, 0.92);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 3px;
+  gap: 2px;
+}
+
+.weather-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: none;
+  border-radius: 4px;
+  padding: 6px 10px;
+  font-family: var(--font-body);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--ink-faint);
+  cursor: pointer;
+  white-space: nowrap;
+}
+.weather-btn svg { flex-shrink: 0; }
+.weather-btn:hover { color: var(--ink); }
+.weather-btn.active {
+  background: var(--accent-soft);
+  color: var(--accent-ink);
+}
+/* El botón "Lluvioso" activo usa un acento distinto (azulado) para
+   reforzar la lectura del clima, en vez del verde de "seleccionado". */
+.weather-btn#btn-weather-rainy.active {
+  background: #DDE6E8;
+  color: #2E4A52;
+}
+
 .viewport-hint {
   position: absolute;
   bottom: 14px;
@@ -621,6 +667,11 @@ a { color: var(--accent); }
 
   /* Botón "Vista general" con margen respecto al borde del visor */
   .viewport-topbar { top: max(14px, env(safe-area-inset-top, 0px)); }
+
+  /* El control de clima se reduce a solo íconos (con tooltip) para que
+     quepa junto a "Vista general" en pantallas angostas. */
+  .weather-btn span { display: none; }
+  .weather-btn { padding: 8px; }
 
   /* Tarjetas y tipografía del panel un poco más compactas en móvil */
   .info-panel-scroll { padding: 20px 16px 32px; }
