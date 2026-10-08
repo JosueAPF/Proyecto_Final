@@ -145,6 +145,17 @@ a { color: var(--accent); }
   grid-template-columns: var(--nav-w) 1fr var(--panel-w);
   height: calc(100% - var(--topbar-h));
 }
+/* Posiciones de columna FIJAS y explícitas (no por orden de aparición).
+   Esto es crítico: en el layout móvil de "cajón" (ver media query más
+   abajo), .side-nav y .info-panel pasan a position:fixed, lo que los
+   saca del flujo normal y los excluye del auto-posicionamiento del
+   grid. Si .viewport no tuviera una columna asignada explícitamente,
+   al quedar como el único hijo "en flujo" del grid se auto-colocaría
+   en la columna 1 (ancho 0 en móvil) en vez de la columna 2 — dejando
+   el lienzo 3D con ancho 0 y por tanto invisible. */
+.side-nav  { grid-column: 1; }
+.viewport  { grid-column: 2; }
+.info-panel { grid-column: 3; }
 
 /* =====================================================================
    NAV IZQUIERDA
@@ -579,7 +590,65 @@ a { color: var(--accent); }
   padding: 14px 12px 8px;
   margin: 6px 0 4px;
 }
-.chart-wrap canvas { max-width: 100%; }
+/* Chart.js (maintainAspectRatio:false) mide el tamaño de este contenedor
+   para dibujarse; necesita una altura explícita y no "auto", o el canvas
+   colapsa a 0px y la gráfica nunca aparece. */
+.chart-canvas-box {
+  position: relative;
+  width: 100%;
+  height: 200px;
+}
+.chart-canvas-box canvas { max-width: 100%; }
+
+.chart-slider-wrap {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 10px 2px 0;
+}
+.chart-slider-label {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--ink-soft);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.chart-slider {
+  flex: 1;
+  -webkit-appearance: none;
+  appearance: none;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--line-strong);
+  outline: none;
+  cursor: pointer;
+}
+.chart-slider::-webkit-slider-thumb {
+  -webkit-appearance: none;
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--gold);
+  border: 2px solid var(--paper-raised);
+  box-shadow: 0 0 0 1px var(--gold);
+  cursor: pointer;
+}
+.chart-slider::-moz-range-thumb {
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--gold);
+  border: 2px solid var(--paper-raised);
+  box-shadow: 0 0 0 1px var(--gold);
+  cursor: pointer;
+}
+.chart-slider::-moz-range-track {
+  height: 4px;
+  border-radius: 2px;
+  background: var(--line-strong);
+}
+
 .chart-readout {
   display: flex;
   justify-content: space-between;
@@ -591,6 +660,17 @@ a { color: var(--accent); }
   margin-top: 8px;
 }
 .chart-readout b { color: var(--gold); }
+
+.chart-error {
+  margin: 0;
+  padding: 14px;
+  font-family: var(--font-mono);
+  font-size: 12px;
+  color: var(--danger);
+  background: #FBEDEA;
+  border: 1px dashed var(--danger);
+  border-radius: var(--radius-lg);
+}
 
 .charts-grid {
   display: grid;
@@ -617,15 +697,23 @@ a { color: var(--accent); }
 
 /* =====================================================================
    RESPONSIVE
-   La app usa un layout de 3 columnas en escritorio/tablet ancho. Por
-   debajo de 900px, la nav y el panel se convierten en cajones (drawers)
-   que se deslizan sobre el visor 3D, que pasa a ocupar toda la pantalla.
+   La app usa un layout de 3 columnas solo en pantallas de escritorio
+   amplias. En cualquier teléfono o tablet (ver el media query de abajo:
+   por ancho angosto O por ser un dispositivo táctil sin mouse/trackpad),
+   la nav y el panel se convierten en cajones (drawers) que se deslizan
+   sobre el visor 3D, que pasa a ocupar toda la pantalla por defecto.
    ===================================================================== */
 @media (max-width: 1180px) {
   :root { --nav-w: 232px; --panel-w: 340px; }
 }
 
-@media (max-width: 900px) {
+/* Modo "cajón" (nav/panel colapsables con botón): se activa por ancho
+   angosto (hasta 1024px, cubre tablets en vertical) O por ser un
+   dispositivo táctil sin mouse/trackpad (hover:none + pointer:coarse),
+   que cubre tablets en horizontal con pantallas muy anchas — como el
+   iPad Pro de 12.9" (1366px en horizontal), que de otro modo quedaría
+   atrapado en el layout de escritorio sin forma de colapsar los paneles. */
+@media (max-width: 1024px), (hover: none) and (pointer: coarse) {
   .icon-btn {
     display: inline-flex;
     width: 40px;   /* objetivo táctil cómodo (~40-44px) */
@@ -699,44 +787,4 @@ a { color: var(--accent); }
   .side-nav, .info-panel { width: min(60vw, 320px); }
   .side-nav-scroll { padding: 12px 12px 10px; }
   .nav-footer { margin-top: 12px; padding-top: 10px; }
-}
-
-
-/* Oppo A32 y móviles similares */
-@media (max-width: 390px) {
-  .topbar-title h1 {
-    font-size: 13px;
-  }
-
-  .ghost-btn {
-    font-size: 11px;
-    padding: 7px 9px;
-  }
-
-  .side-nav,
-  .info-panel {
-    width: 92vw;
-  }
-
-  .panel-title {
-    font-size: 16px;
-  }
-}
-
-
-/* Redmi Note 11 */
-@media (max-width: 400px) {
-  .side-nav,
-  .info-panel {
-    width: 90vw;
-  }
-}
-
-
-/* Motorola Edge 20 Pro y similares */
-@media (max-width: 420px) {
-  .s*de-nav,
-  .info-panel {
-    width:85vw;
-  }
 }

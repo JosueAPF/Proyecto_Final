@@ -1,16 +1,21 @@
-
-/*
+/* =====================================================================
   Brenda Susana Echeverria Nova
   Reivini Nicolle Figueroa Vides
   Allan Francisco Figueroa Vides
   Josue Abraham Porras Figueroa
-
-
-*/
-  
+   ===================================================================== */
 
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
+
+/**
+ * Mismo criterio que el breakpoint "modo cajón" de styles.css: ancho
+ * angosto (tablets en vertical) O dispositivo táctil sin mouse/trackpad
+ * (tablets grandes en horizontal, como el iPad Pro de 12.9" a 1366px,
+ * que por ancho solo quedaría en modo escritorio). Si cambias el CSS,
+ * actualiza esta cadena también para que ambos coincidan.
+ */
+const MOBILE_LAYOUT_QUERY = "(max-width: 1024px), (hover: none) and (pointer: coarse)";
 
 /* =====================================================================
    1. CONSTANTES DEL MODELO MATEMÁTICO
@@ -113,7 +118,7 @@ const contentData = {
       ],
       highlightRow: -1,
     },
-    
+    callout: "Nota de representación: el visor 3D prioriza fidelidad visual a la Figura 1 del informe. El modelo algebraico AP(x) = 200x trata el parqueo como si su lado mayor coincidiera con los 200 m del terreno — una simplificación habitual para reducir el área a una sola variable x, independiente de la forma exacta con que se dibuje el lote.<br><br>Verificación: 10,000 + 15,000 + 35,000 = <b>60,000 m²</b>, exactamente el área del terreno.",
   },
 
   parqueo: {
@@ -124,7 +129,7 @@ const contentData = {
     body: [
       "El parqueo es un rectángulo cuyo largo es el ancho completo del terreno (200 m) y cuyo ancho es la variable de diseño <b>x</b>.",
       "La pendiente 200 tiene una lectura directa: cada metro adicional de ancho asignado al parqueo aporta 200 m² de superficie.",
-      
+      "El valor de diseño x = 75 m se obtuvo a partir de un estándar de planificación: 2,000 espectadores ÷ 4 = 500 espacios de estacionamiento, y 500 × 30 m² por vehículo = 15,000 m². Igualando <b>200x = 15,000</b> se despeja x = 75 m.",
     ],
     formulas: [
       { latex: "AP(x) = 200x", caption: "Área de parqueo en función del ancho x" },
@@ -177,8 +182,7 @@ const contentData = {
     kicker: "Función constante",
     title: "Perímetro del parque",
     body: [
-      "terreno completo asignado al proyecto —200 m × 300 m—,",
-      
+      "terreno completo asignado al proyecto 200 m × 300 m"
     ],
     formulas: [
       { latex: "P(x) = 2(200 + 300) = 1{,}000\\text{ m}", caption: "Perímetro del terreno completo (el parque), constante para todo x en su dominio" },
@@ -371,8 +375,10 @@ function selectContent(id, opts = {}) {
     root.appendChild(buildChartBlock(entry.chart));
   }
 
-  // En pantallas angostas, abrir el panel automáticamente al seleccionar.
-  if (window.matchMedia("(max-width: 900px)").matches) {
+  // En pantallas angostas o táctiles (el mismo criterio que activa los
+  // cajones colapsables en CSS), abrir el panel automáticamente al
+  // seleccionar algo, ya que ahí empieza oculto por defecto.
+  if (window.matchMedia(MOBILE_LAYOUT_QUERY).matches) {
     openPanel();
   }
 
@@ -409,98 +415,189 @@ const FUNCTION_DEFS = {
 
 let chartInstances = []; // referencias activas, para destruirlas al cambiar de panel
 
-/** Crea el contenedor + <canvas> + gráfica Chart.js para una función dada. */
+/**
+ * Crea el contenedor + <canvas> + gráfica Chart.js para una función dada,
+ * con un control deslizante que el usuario puede arrastrar para mover el
+ * punto resaltado a lo largo de la curva y leer su valor en vivo — así la
+ * gráfica es realmente interactiva y no solo una imagen con tooltip.
+ */
 function buildChartBlock(cfg) {
   const def = FUNCTION_DEFS[cfg.key];
   const wrap = document.createElement("div");
   wrap.className = "chart-wrap";
 
+  // El <canvas> necesita un contenedor con ALTURA PROPIA Y EXPLÍCITA.
+  // Chart.js con maintainAspectRatio:false mide el tamaño de su padre
+  // para dibujar — si el padre solo tiene "padding" (altura automática,
+  // como .chart-wrap), no hay una altura real de la que partir y la
+  // gráfica termina colapsada a 0px (invisible). Por eso el <canvas> va
+  // dentro de un div dedicado con height fija en CSS (.chart-canvas-box).
+  const canvasBox = document.createElement("div");
+  canvasBox.className = "chart-canvas-box";
   const canvas = document.createElement("canvas");
-  canvas.height = 190;
-  wrap.appendChild(canvas);
+  canvasBox.appendChild(canvas);
+  wrap.appendChild(canvasBox);
+
+  // --- Control deslizante: mueve el punto resaltado sobre la curva ---
+  const [a, b] = def.domain;
+  const sliderWrap = document.createElement("div");
+  sliderWrap.className = "chart-slider-wrap";
+  const slider = document.createElement("input");
+  slider.type = "range";
+  slider.className = "chart-slider";
+  slider.min = String(a);
+  slider.max = String(b);
+  slider.step = String((b - a) / 300);
+  const startX = cfg.highlightX != null ? cfg.highlightX : (a + b) / 2;
+  slider.value = String(startX);
+  const sliderLabel = document.createElement("label");
+  sliderLabel.className = "chart-slider-label";
+  sliderWrap.appendChild(sliderLabel);
+  sliderWrap.appendChild(slider);
+  wrap.appendChild(sliderWrap);
 
   const readout = document.createElement("div");
   readout.className = "chart-readout";
-  readout.innerHTML = `<span>${def.name}</span><b>${cfg.highlightLabel || ""}</b>`;
+  readout.innerHTML = `<span>${def.name}</span><b></b>`;
   wrap.appendChild(readout);
+  const readoutValue = readout.querySelector("b");
 
-  // Muestreo de la función en su dominio
-  const [a, b] = def.domain;
-  const steps = 60;
+  const fmt = (n) => n.toLocaleString("es-GT", { maximumFractionDigits: 2 });
+  function describe(x) {
+    const y = def.fn(x);
+    const xName = def.xLabel.split(" ")[0];
+    const yName = def.yLabel.split(" ")[0];
+    sliderLabel.textContent = `Mueve ${xName}:`;
+    readoutValue.textContent = `${xName} = ${fmt(x)} → ${yName} = ${fmt(y)}`;
+    return y;
+  }
+  describe(startX);
+
+  // Muestreo de la función en su dominio (curva fija de fondo)
+  const steps = 120;
   const points = [];
   for (let i = 0; i <= steps; i++) {
     const x = a + ((b - a) * i) / steps;
     points.push({ x, y: def.fn(x) });
   }
 
-  const highlightPoint = cfg.highlightX != null
-    ? { x: cfg.highlightX, y: def.fn(cfg.highlightX) }
-    : null;
+  // El canvas debe existir en el DOM (con su tamaño final ya calculado
+  // por CSS) antes de instanciar Chart.js. Un solo requestAnimationFrame
+  // puede dispararse antes de que el navegador termine de aplicar el
+  // layout; encadenar dos rAF garantiza que ya hubo un frame completo de
+  // render de por medio.
+  requestAnimationFrame(() => requestAnimationFrame(() => {
+    if (typeof Chart === "undefined") {
+      // Chart.js no cargó (p. ej. sin conexión a internet: se sirve desde
+      // un CDN externo). Lo mostramos explícitamente en vez de quedarnos
+      // en silencio, para que quede claro que no es un problema del
+      // control deslizante sino de la librería externa.
+      const err = document.createElement("p");
+      err.className = "chart-error";
+      err.textContent = "No se pudo cargar la librería de gráficas (Chart.js). Revisa tu conexión a internet y recarga la página.";
+      canvasBox.replaceWith(err);
+      console.error("[simulador] Chart.js no está disponible en window.Chart");
+      return;
+    }
 
-  // El canvas debe existir en el DOM antes de instanciar Chart.js,
-  // así que la creación real se difiere con requestAnimationFrame.
-  requestAnimationFrame(() => {
-    const chart = new Chart(canvas.getContext("2d"), {
-      type: "line",
-      data: {
-        datasets: [
-          {
-            label: def.name,
-            data: points,
-            borderColor: "#1F5C4E",
-            backgroundColor: "rgba(31, 92, 78, 0.08)",
-            borderWidth: 2,
-            pointRadius: 0,
-            fill: true,
-            tension: 0.15,
-          },
-          ...(highlightPoint ? [{
-            label: "Valor de diseño",
-            data: [highlightPoint],
-            borderColor: "#B9822E",
-            backgroundColor: "#B9822E",
-            pointRadius: 5,
-            pointHoverRadius: 6,
-            showLine: false,
-          }] : []),
-        ],
-      },
-      options: {
-        responsive: true,
-        maintainAspectRatio: false,
-        animation: { duration: 550 },
-        interaction: { intersect: false, mode: "index" },
-        plugins: {
-          legend: { display: false },
-          tooltip: {
-            backgroundColor: "#20241F",
-            titleFont: { family: "IBM Plex Mono", size: 11 },
-            bodyFont: { family: "IBM Plex Mono", size: 11 },
-            callbacks: {
-              title: (items) => `${def.xLabel.split(" ")[0]} = ${items[0].parsed.x.toFixed(2)}`,
-              label: (item) => `${def.yLabel.split(" ")[0]} = ${item.parsed.y.toLocaleString("es-GT", { maximumFractionDigits: 2 })}`,
+    let chart;
+    try {
+      chart = new Chart(canvas.getContext("2d"), {
+        type: "line",
+        data: {
+          datasets: [
+            {
+              label: def.name,
+              data: points,
+              borderColor: "#1F5C4E",
+              backgroundColor: "rgba(31, 92, 78, 0.08)",
+              borderWidth: 2,
+              pointRadius: 0,
+              fill: true,
+              tension: 0.15,
+            },
+            {
+              label: "Punto seleccionado",
+              data: [{ x: startX, y: def.fn(startX) }],
+              borderColor: "#B9822E",
+              backgroundColor: "#B9822E",
+              pointRadius: 6,
+              pointHoverRadius: 7,
+              showLine: false,
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          animation: { duration: 300 },
+          interaction: { intersect: false, mode: "index" },
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: "#20241F",
+              titleFont: { family: "IBM Plex Mono", size: 11 },
+              bodyFont: { family: "IBM Plex Mono", size: 11 },
+              callbacks: {
+                title: (items) => `${def.xLabel.split(" ")[0]} = ${items[0].parsed.x.toFixed(2)}`,
+                label: (item) => `${def.yLabel.split(" ")[0]} = ${item.parsed.y.toLocaleString("es-GT", { maximumFractionDigits: 2 })}`,
+              },
             },
           },
-        },
-        scales: {
-          x: {
-            type: "linear",
-            title: { display: true, text: def.xLabel, font: { family: "IBM Plex Sans", size: 11 }, color: "#565F55" },
-            grid: { color: "#E9E5D8" },
-            ticks: { color: "#8A9186", font: { size: 10 } },
+          scales: {
+            x: {
+              type: "linear",
+              min: a,
+              max: b,
+              title: { display: true, text: def.xLabel, font: { family: "IBM Plex Sans", size: 11 }, color: "#565F55" },
+              grid: { color: "#E9E5D8" },
+              ticks: { color: "#8A9186", font: { size: 10 } },
+            },
+            y: {
+              min: def.yMin,
+              max: def.yMax,
+              title: { display: true, text: def.yLabel, font: { family: "IBM Plex Sans", size: 11 }, color: "#565F55" },
+              grid: { color: "#E9E5D8" },
+              ticks: { color: "#8A9186", font: { size: 10 } },
+            },
           },
-          y: {
-            min: def.yMin,
-            max: def.yMax,
-            title: { display: true, text: def.yLabel, font: { family: "IBM Plex Sans", size: 11 }, color: "#565F55" },
-            grid: { color: "#E9E5D8" },
-            ticks: { color: "#8A9186", font: { size: 10 } },
+          // Al hacer clic/tocar directamente sobre la curva, el punto
+          // resaltado y el control deslizante saltan a ese valor de x.
+          onClick: (evt) => {
+            const xScale = chart.scales.x;
+            const canvasRect = chart.canvas.getBoundingClientRect();
+            const xPixel = evt.native
+              ? evt.native.clientX - canvasRect.left
+              : evt.x;
+            let x = xScale.getValueForPixel(xPixel);
+            x = Math.min(b, Math.max(a, x));
+            slider.value = String(x);
+            slider.dispatchEvent(new Event("input"));
           },
         },
-      },
-    });
+      });
+    } catch (e) {
+      console.error("[simulador] Error creando la gráfica Chart.js:", e);
+      const err = document.createElement("p");
+      err.className = "chart-error";
+      err.textContent = "Ocurrió un error al dibujar la gráfica. Revisa la consola del navegador (F12) para más detalles.";
+      canvasBox.replaceWith(err);
+      return;
+    }
+
     chartInstances.push(chart);
-  });
+
+    slider.addEventListener("input", () => {
+      const x = parseFloat(slider.value);
+      const y = describe(x);
+      chart.data.datasets[1].data = [{ x, y }];
+      chart.update("none");
+    });
+
+    // Aseguramos un primer redibujo con el tamaño real ya asentado,
+    // por si el contenedor cambió de tamaño entre el primer y segundo rAF.
+    chart.resize();
+  }));
 
   return wrap;
 }
@@ -655,6 +752,17 @@ function initThree() {
     if (Math.hypot(dx, dy) < 6) onPointerUp(e);
   });
   window.addEventListener("resize", onResize);
+
+  // El evento "resize" de window no siempre se dispara cuando el tamaño
+  // de #canvas-holder cambia por otras causas: un breakpoint de CSS que
+  // entra en juego, DevTools cambiando de preset de dispositivo, o los
+  // cajones de navegación abriéndose/cerrándose (que no cambian el ancho
+  // de la ventana, solo el del contenedor). ResizeObserver cubre todos
+  // esos casos observando el propio contenedor directamente.
+  if (typeof ResizeObserver !== "undefined") {
+    const ro = new ResizeObserver(() => onResize());
+    ro.observe(holder);
+  }
 
   animate();
 }
@@ -1795,9 +1903,20 @@ function renderPanelOnly(id) {
 
 function onResize() {
   const holder = document.getElementById("canvas-holder");
-  camera.aspect = holder.clientWidth / holder.clientHeight;
+  const w = holder.clientWidth;
+  const h = holder.clientHeight;
+  // En DevTools, al cambiar de preset de dispositivo, el contenedor puede
+  // reportar momentáneamente 0x0 (antes de que el layout/CSS termine de
+  // aplicarse). Si llamamos a renderer.setSize(0,0) el canvas queda roto
+  // (altura/anchura 0) y no vuelve a recuperarse solo. Nos lo saltamos y
+  // reintentamos en el próximo frame hasta que haya un tamaño real.
+  if (w <= 0 || h <= 0) {
+    requestAnimationFrame(onResize);
+    return;
+  }
+  camera.aspect = w / h;
   camera.updateProjectionMatrix();
-  renderer.setSize(holder.clientWidth, holder.clientHeight);
+  renderer.setSize(w, h);
 }
 
 const sceneClock = new THREE.Clock();
@@ -1831,24 +1950,48 @@ function resetView() {
 
 function openPanel() {
   document.getElementById("info-panel").classList.add("open");
+  document.getElementById("side-nav").classList.remove("open");
+  document.getElementById("scrim").hidden = false;
+}
+function openNav() {
+  document.getElementById("side-nav").classList.add("open");
+  document.getElementById("info-panel").classList.remove("open");
   document.getElementById("scrim").hidden = false;
 }
 function closePanels() {
   document.getElementById("info-panel").classList.remove("open");
   document.getElementById("side-nav").classList.remove("open");
   document.getElementById("scrim").hidden = true;
+  // El contenedor del canvas puede haber cambiado de tamaño al
+  // mostrarse/ocultarse los cajones; forzamos un recálculo del render.
+  requestAnimationFrame(onResize);
 }
 
 function wireUI() {
   document.getElementById("btn-toggle-nav").addEventListener("click", () => {
-    document.getElementById("side-nav").classList.add("open");
-    document.getElementById("scrim").hidden = false;
+    const nav = document.getElementById("side-nav");
+    if (nav.classList.contains("open")) {
+      closePanels();
+    } else {
+      openNav();
+    }
   });
   document.getElementById("btn-toggle-panel").addEventListener("click", () => {
-    openPanel();
+    const panel = document.getElementById("info-panel");
+    if (panel.classList.contains("open")) {
+      closePanels();
+    } else {
+      openPanel();
+    }
   });
   document.getElementById("scrim").addEventListener("click", closePanels);
   document.getElementById("btn-reset-view").addEventListener("click", resetView);
+
+  // Botones "X" dentro de los cajones, si existen en el HTML (ver index.html).
+  const closeNavBtn = document.getElementById("btn-close-nav");
+  if (closeNavBtn) closeNavBtn.addEventListener("click", closePanels);
+  const closePanelBtn = document.getElementById("btn-close-panel");
+  if (closePanelBtn) closePanelBtn.addEventListener("click", closePanels);
 }
 
 function init() {

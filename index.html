@@ -8,10 +8,7 @@
 <meta name="description" content="Simulador 3D interactivo del modelado matemático aplicado al diseño de un teatro: área, volumen, perímetro y optimización de ingresos." />
 
 <!-- ============================================================
-     FUENTES
-     Fraunces: serif con carácter para títulos (tono académico,
-     no el serif genérico "de IA"). IBM Plex Sans: cuerpo/UI,
-     asociada a contextos técnicos/ingeniería.
+Fuentes aplicadads al proyecto
      ============================================================ -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -33,7 +30,7 @@
       <svg viewBox="0 0 24 24" width="20" height="20"><path d="M3 6h18M3 12h18M3 18h18" stroke="currentColor" stroke-width="1.8" fill="none" stroke-linecap="round"/></svg>
     </button>
     <div class="topbar-title">
-      <span class="eyebrow">Universidad Mariano Gálvez de Guatemala </span>
+      <span class="eyebrow">Universidad Mariano Gálvez de Guatemala · Pre-Cálculo</span>
       <h1>Modelado Matemático Aplicado al Diseño de un Teatro</h1>
     </div>
     <button class="icon-btn" id="btn-toggle-panel" aria-label="Mostrar panel de información" title="Panel de información">
@@ -48,6 +45,9 @@
          ============================================================ -->
     <nav class="side-nav" id="side-nav" aria-label="Navegación del proyecto">
       <div class="side-nav-scroll">
+        <button class="icon-btn drawer-close-btn" id="btn-close-nav" aria-label="Cerrar navegación" title="Cerrar">
+          <svg viewBox="0 0 24 24" width="18" height="18"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+        </button>
         <p class="nav-heading">Navegación del proyecto</p>
         <ol class="nav-list" id="nav-list"><!-- generado por JS --></ol>
 
@@ -124,6 +124,9 @@
          PANEL DERECHO — Información dinámica
          ============================================================ -->
     <aside class="info-panel" id="info-panel" aria-label="Información del elemento seleccionado">
+      <button class="icon-btn drawer-close-btn" id="btn-close-panel" aria-label="Cerrar panel de información" title="Cerrar">
+        <svg viewBox="0 0 24 24" width="18" height="18"><path d="M6 6l12 12M18 6 6 18" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </button>
       <div class="info-panel-scroll" id="info-panel-content">
         <!-- generado por JS -->
       </div>
@@ -145,8 +148,11 @@
     }
   }
   </script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js"></script>
+  <!-- Chart.js y KaTeX con respaldo: si el CDN principal (cdnjs) falla
+       por la red del usuario, se reintenta automáticamente desde
+       jsdelivr antes de que el resto de la página termine de cargar. -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js" onerror="this.onerror=null; var s=document.createElement('script'); s.src='https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js'; document.head.appendChild(s);"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/KaTeX/0.16.9/katex.min.js" onerror="this.onerror=null; var s=document.createElement('script'); s.src='https://cdn.jsdelivr.net/npm/katex@0.16.9/dist/katex.min.js'; document.head.appendChild(s);"></script>
 
   <script type="module" src="main.js"></script>
 </body>
