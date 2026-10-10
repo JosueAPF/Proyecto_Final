@@ -1,9 +1,12 @@
 /* =====================================================================
+  curso precalculo:
+
   Brenda Susana Echeverria Nova
   Reivini Nicolle Figueroa Vides
   Allan Francisco Figueroa Vides
   Josue Abraham Porras Figueroa
-   ===================================================================== */
+
+  ===================================================================== */
 
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
@@ -16,6 +19,21 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
  * actualiza esta cadena también para que ambos coincidan.
  */
 const MOBILE_LAYOUT_QUERY = "(max-width: 1024px), (hover: none) and (pointer: coarse)";
+
+/**
+ * "Modo rendimiento": se activa en equipos con GPU/RAM limitada —
+ * típicamente cualquier teléfono — para evitar que la escena 3D los
+ * sobrecaliente o los trabe. La señal más confiable es no tener
+ * mouse/trackpad (pointer:coarse: casi siempre un teléfono o tablet);
+ * navigator.deviceMemory (cuando el navegador lo expone, p. ej. Chrome
+ * Android) es un respaldo extra para detectar equipos de 4GB o menos.
+ * En este modo se recorta lo que más calienta la GPU: resolución de
+ * render, antialiasing, sombras dinámicas, cantidad de luces en tiempo
+ * real y partículas de lluvia.
+ */
+const LOW_POWER_DEVICE =
+  (typeof matchMedia === "function" && matchMedia("(pointer: coarse)").matches) ||
+  (typeof navigator !== "undefined" && navigator.deviceMemory != null && navigator.deviceMemory <= 4);
 
 /* =====================================================================
    1. CONSTANTES DEL MODELO MATEMÁTICO
@@ -177,12 +195,12 @@ const contentData = {
   },
 
   perimetro: {
-    navLabel: "Perímetro",
+    navLabel: "Perímetro del Parque",
     linkedObject: "perimeter_group",
     kicker: "Función constante",
     title: "Perímetro del parque",
     body: [
-      "terreno completo asignado al proyecto 200 m × 300 m"
+      "terreno completo asignado al proyecto 200 m × 300 m",
     ],
     formulas: [
       { latex: "P(x) = 2(200 + 300) = 1{,}000\\text{ m}", caption: "Perímetro del terreno completo (el parque), constante para todo x en su dominio" },
@@ -503,78 +521,78 @@ function buildChartBlock(cfg) {
     let chart;
     try {
       chart = new Chart(canvas.getContext("2d"), {
-        type: "line",
-        data: {
-          datasets: [
-            {
-              label: def.name,
-              data: points,
-              borderColor: "#1F5C4E",
-              backgroundColor: "rgba(31, 92, 78, 0.08)",
-              borderWidth: 2,
-              pointRadius: 0,
-              fill: true,
-              tension: 0.15,
-            },
-            {
-              label: "Punto seleccionado",
-              data: [{ x: startX, y: def.fn(startX) }],
-              borderColor: "#B9822E",
-              backgroundColor: "#B9822E",
-              pointRadius: 6,
-              pointHoverRadius: 7,
-              showLine: false,
-            },
-          ],
-        },
-        options: {
-          responsive: true,
-          maintainAspectRatio: false,
-          animation: { duration: 300 },
-          interaction: { intersect: false, mode: "index" },
-          plugins: {
-            legend: { display: false },
-            tooltip: {
-              backgroundColor: "#20241F",
-              titleFont: { family: "IBM Plex Mono", size: 11 },
-              bodyFont: { family: "IBM Plex Mono", size: 11 },
-              callbacks: {
-                title: (items) => `${def.xLabel.split(" ")[0]} = ${items[0].parsed.x.toFixed(2)}`,
-                label: (item) => `${def.yLabel.split(" ")[0]} = ${item.parsed.y.toLocaleString("es-GT", { maximumFractionDigits: 2 })}`,
-              },
-            },
+      type: "line",
+      data: {
+        datasets: [
+          {
+            label: def.name,
+            data: points,
+            borderColor: "#1F5C4E",
+            backgroundColor: "rgba(31, 92, 78, 0.08)",
+            borderWidth: 2,
+            pointRadius: 0,
+            fill: true,
+            tension: 0.15,
           },
-          scales: {
-            x: {
-              type: "linear",
-              min: a,
-              max: b,
-              title: { display: true, text: def.xLabel, font: { family: "IBM Plex Sans", size: 11 }, color: "#565F55" },
-              grid: { color: "#E9E5D8" },
-              ticks: { color: "#8A9186", font: { size: 10 } },
-            },
-            y: {
-              min: def.yMin,
-              max: def.yMax,
-              title: { display: true, text: def.yLabel, font: { family: "IBM Plex Sans", size: 11 }, color: "#565F55" },
-              grid: { color: "#E9E5D8" },
-              ticks: { color: "#8A9186", font: { size: 10 } },
-            },
+          {
+            label: "Punto seleccionado",
+            data: [{ x: startX, y: def.fn(startX) }],
+            borderColor: "#B9822E",
+            backgroundColor: "#B9822E",
+            pointRadius: 6,
+            pointHoverRadius: 7,
+            showLine: false,
           },
-          // Al hacer clic/tocar directamente sobre la curva, el punto
-          // resaltado y el control deslizante saltan a ese valor de x.
-          onClick: (evt) => {
-            const xScale = chart.scales.x;
-            const canvasRect = chart.canvas.getBoundingClientRect();
-            const xPixel = evt.native
-              ? evt.native.clientX - canvasRect.left
-              : evt.x;
-            let x = xScale.getValueForPixel(xPixel);
-            x = Math.min(b, Math.max(a, x));
-            slider.value = String(x);
-            slider.dispatchEvent(new Event("input"));
+        ],
+      },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        animation: { duration: 300 },
+        interaction: { intersect: false, mode: "index" },
+        plugins: {
+          legend: { display: false },
+          tooltip: {
+            backgroundColor: "#20241F",
+            titleFont: { family: "IBM Plex Mono", size: 11 },
+            bodyFont: { family: "IBM Plex Mono", size: 11 },
+            callbacks: {
+              title: (items) => `${def.xLabel.split(" ")[0]} = ${items[0].parsed.x.toFixed(2)}`,
+              label: (item) => `${def.yLabel.split(" ")[0]} = ${item.parsed.y.toLocaleString("es-GT", { maximumFractionDigits: 2 })}`,
+            },
           },
         },
+        scales: {
+          x: {
+            type: "linear",
+            min: a,
+            max: b,
+            title: { display: true, text: def.xLabel, font: { family: "IBM Plex Sans", size: 11 }, color: "#565F55" },
+            grid: { color: "#E9E5D8" },
+            ticks: { color: "#8A9186", font: { size: 10 } },
+          },
+          y: {
+            min: def.yMin,
+            max: def.yMax,
+            title: { display: true, text: def.yLabel, font: { family: "IBM Plex Sans", size: 11 }, color: "#565F55" },
+            grid: { color: "#E9E5D8" },
+            ticks: { color: "#8A9186", font: { size: 10 } },
+          },
+        },
+        // Al hacer clic/tocar directamente sobre la curva, el punto
+        // resaltado y el control deslizante saltan a ese valor de x.
+        onClick: (evt) => {
+          const xScale = chart.scales.x;
+          const canvasRect = chart.canvas.getBoundingClientRect();
+          const xPixel = evt.native
+            ? evt.native.clientX - canvasRect.left
+            : evt.x;
+          let x = xScale.getValueForPixel(xPixel);
+          x = Math.min(b, Math.max(a, x));
+          slider.value = String(x);
+          slider.dispatchEvent(new Event("input"));
+        },
+      },
       });
     } catch (e) {
       console.error("[simulador] Error creando la gráfica Chart.js:", e);
@@ -699,10 +717,21 @@ function initThree() {
   camera = new THREE.PerspectiveCamera(42, holder.clientWidth / holder.clientHeight, 0.1, 2000);
   camera.position.copy(DEFAULT_VIEW.pos);
 
-  renderer = new THREE.WebGLRenderer({ antialias: true });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+  renderer = new THREE.WebGLRenderer({
+    antialias: !LOW_POWER_DEVICE, // el MSAA es caro en GPUs móviles basadas en "tiles"
+    powerPreference: "high-performance",
+  });
+  // Un teléfono con devicePixelRatio 2.75 (como el Redmi Note 11) dibuja
+  // casi 8x más píxeles por fotograma a DPR completo que a DPR 1. Limitar
+  // a 1 en modo rendimiento es, junto con las sombras, el cambio de mayor
+  // impacto para que la GPU no se sobrecaliente.
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio, LOW_POWER_DEVICE ? 1 : 2));
   renderer.setSize(holder.clientWidth, holder.clientHeight);
-  renderer.shadowMap.enabled = true;
+  // Las sombras dinámicas recalculan un mapa de 2048x2048 EN CADA
+  // FOTOGRAMA (porque hay gente/carros/autos animados) para toda la
+  // escena — es, junto con la resolución, el mayor consumo de GPU.
+  // Se desactivan por completo en modo rendimiento.
+  renderer.shadowMap.enabled = !LOW_POWER_DEVICE;
   renderer.shadowMap.type = THREE.PCFSoftShadowMap;
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   holder.appendChild(renderer.domElement);
@@ -722,8 +751,8 @@ function initThree() {
   scene.add(hemiLight);
   sunLight = new THREE.DirectionalLight(0xFFF6E3, 1.15);
   sunLight.position.set(180, 260, 120);
-  sunLight.castShadow = true;
-  sunLight.shadow.mapSize.set(2048, 2048);
+  sunLight.castShadow = !LOW_POWER_DEVICE;
+  sunLight.shadow.mapSize.set(LOW_POWER_DEVICE ? 512 : 2048, LOW_POWER_DEVICE ? 512 : 2048);
   sunLight.shadow.camera.left = -220;
   sunLight.shadow.camera.right = 220;
   sunLight.shadow.camera.top = 220;
@@ -1605,7 +1634,13 @@ function buildLampPost(x, z) {
   // pequeñas y decorativas, no vale la pena el costo de recalcular sombras.
   const light = new THREE.PointLight(0xFFC77A, 0, 17, 2);
   light.position.set(x, lampY - 0.15, z);
-  group.add(light);
+  // En modo rendimiento NO se agrega la luz real a la escena (8 postes =
+  // 8 luces dinámicas evaluadas en cada píxel de cada material, caro en
+  // una GPU móvil). El foco emisivo + el halo (sprite) ya dan la
+  // sensación visual de "encendido" sin ese costo; applyLampLevel()
+  // sigue pudiendo tocar light.intensity sin problema aunque no esté
+  // en la escena.
+  if (!LOW_POWER_DEVICE) group.add(light);
 
   scene.add(group);
   return { bulb, halo, light };
@@ -1663,7 +1698,7 @@ function buildHighlightRing() {
    escribiendo directamente en el arreglo de posiciones — más liviano
    que crear/destruir miles de objetos.
    ===================================================================== */
-const RAIN_COUNT = 900;
+const RAIN_COUNT = LOW_POWER_DEVICE ? 260 : 900;
 const RAIN_BOUNDS = { xMin: -110, xMax: 110, zMin: -20, zMax: 310, yMin: 20, yMax: 150 };
 
 function buildRain() {
@@ -1921,8 +1956,20 @@ function onResize() {
 
 const sceneClock = new THREE.Clock();
 
+// Si la pestaña/app queda en segundo plano (el usuario cambia de app o
+// apaga la pantalla sin cerrar la página), dejamos de renderizar por
+// completo en vez de confiar solo en que el navegador limite rAF — en
+// algunos navegadores móviles ese límite es laxo y la GPU sigue
+// trabajando y calentando el equipo innecesariamente.
+let pageIsVisible = !document.hidden;
+document.addEventListener("visibilitychange", () => {
+  pageIsVisible = !document.hidden;
+  if (pageIsVisible) sceneClock.getDelta(); // descarta el tiempo "congelado" en segundo plano
+});
+
 function animate() {
   requestAnimationFrame(animate);
+  if (!pageIsVisible) return;
   updateCameraAnim();
   if (highlightRing.visible) {
     highlightRing.rotation.z += 0.006;
