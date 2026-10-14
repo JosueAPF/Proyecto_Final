@@ -1,26 +1,36 @@
 /* =====================================================================
-  curso precalculo:
+     curso precalculo:
+      simulador v2 
+      (optimizacion de canvas con respecto al antialiasing y graficas x1 ya q colapsaba en 4gb de ram XD)
+      (agregando cotas ancho(200) y alto(300))
+      (animacion del cilindro del tanque del agua y apartado funcion interactiva)
+      (responsive tablets(ipad y redmi) y cel(redmi n 11 y12 samsumg s23 +))
+
 
   Brenda Susana Echeverria Nova
   Reivini Nicolle Figueroa Vides
   Allan Francisco Figueroa Vides
   Josue Abraham Porras Figueroa
 
-  ===================================================================== */
+
+
+  corregir lo del perimetro:(v1)
+   "Terreno completo asignado al proyecto 200 m × 300 m",
+   "Como las dimensiones del terreno son fijas, este perímetro <strong>no depende de x</strong>: es una función constante.",
+   "Segun nuesttro diseño:  x = 75 m, P(75) = 1,000 m: el perímetro del parque no cambia es constante",
+   ===================================================================== */
 
 import * as THREE from "three";
 import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
 /**
  * Mismo criterio que el breakpoint "modo cajón" de styles.css: ancho
- * angosto (tablets en vertical) O dispositivo táctil sin mouse/trackpad
- * (tablets grandes en horizontal, como el iPad Pro de 12.9" a 1366px,
- * que por ancho solo quedaría en modo escritorio). Si cambias el CSS,
- * actualiza esta cadena también para que ambos coincidan.
+ * 
  */
 const MOBILE_LAYOUT_QUERY = "(max-width: 1024px), (hover: none) and (pointer: coarse)";
 
 /**
+ * gracias claude code
  * "Modo rendimiento": se activa en equipos con GPU/RAM limitada —
  * típicamente cualquier teléfono — para evitar que la escena 3D los
  * sobrecaliente o los trabe. La señal más confiable es no tener
@@ -37,10 +47,7 @@ const LOW_POWER_DEVICE =
 
 /* =====================================================================
    1. CONSTANTES DEL MODELO MATEMÁTICO
-   Estas cifras son las mismas que aparecen en el informe: dimensiones
-   del terreno, valor de diseño x = 75 m, y datos del tanque cilíndrico.
-   Mantenerlas centralizadas evita "números mágicos" repetidos en el
-   código y permite recalcular todo si un valor cambia.
+    uaremos 75 para todo x a ver...
    ===================================================================== */
 const MODEL = {
   terrenoAncho: 200,      // m — ancho fijo del terreno (eje x del croquis)
@@ -195,12 +202,14 @@ const contentData = {
   },
 
   perimetro: {
-    navLabel: "Perímetro del Parque",
+    navLabel: "Perímetro",
     linkedObject: "perimeter_group",
     kicker: "Función constante",
     title: "Perímetro del parque",
     body: [
-      "terreno completo asignado al proyecto 200 m × 300 m",
+      "Terreno completo asignado al proyecto 200 m × 300 m",
+      "Como las dimensiones del terreno son fijas, este perímetro <strong>no depende de x</strong>: es una función constante.",
+      "Segun nuesttro diseño:  x = 75 m, P(75) = 1,000 m: el perímetro del parque no cambia es constante",
     ],
     formulas: [
       { latex: "P(x) = 2(200 + 300) = 1{,}000\\text{ m}", caption: "Perímetro del terreno completo (el parque), constante para todo x en su dominio" },
@@ -610,7 +619,15 @@ function buildChartBlock(cfg) {
       const y = describe(x);
       chart.data.datasets[1].data = [{ x, y }];
       chart.update("none");
+      // El modelo 3D reacciona en vivo al mismo valor x del slider (ver
+      // syncSceneWithChart): el tanque cambia de tamaño con h(r), y una
+      // franja sobre el terreno crece/encoge con AP(x)/AV(x).
+      syncSceneWithChart(cfg.key, x);
     });
+
+    // Sincroniza el modelo 3D con el valor inicial del slider en cuanto
+    // la gráfica queda lista (no solo cuando el usuario la mueve).
+    syncSceneWithChart(cfg.key, startX);
 
     // Aseguramos un primer redibujo con el tamaño real ya asentado,
     // por si el contenedor cambió de tamaño entre el primer y segundo rAF.
@@ -623,6 +640,23 @@ function buildChartBlock(cfg) {
 function destroyCharts() {
   chartInstances.forEach((c) => c.destroy());
   chartInstances = [];
+  // Al salir de una sección con gráfica interactiva, el modelo 3D vuelve
+  // a su estado de diseño (el mismo con el que se construyó la escena),
+  // en vez de quedarse "atascado" en el último valor que dejó el slider.
+  updateTankVisual(MODEL.tanqueRadio);
+  updateGroundIndicator(null, 0);
+}
+
+/**
+ * Conecta el slider de una gráfica interactiva con el modelo 3D: según
+ * qué función esté activa (`key`), toca solo lo que le corresponde —
+ * nunca ambas cosas a la vez, y nunca ningún otro objeto de la escena.
+ * Solo AP, AV y h tienen un análogo geométrico razonable; P (constante)
+ * e I (precio del boleto) se quedan sin vínculo 3D a propósito.
+ */
+function syncSceneWithChart(key, x) {
+  if (key === "h") updateTankVisual(x);
+  if (key === "AP" || key === "AV") updateGroundIndicator(key, x);
 }
 
 // Cada vez que se reconstruye el panel derecho hay que limpiar gráficas viejas.
@@ -649,6 +683,13 @@ let animatedCreatures = [];  // figuras decorativas (personas, perro, cometa) co
 let selectionRegistry = {};  // id -> { object3D, meshes[] } para resaltar
 let selectedId = null;
 let highlightRing;
+
+// --- Vínculo gráfica interactiva → escena 3D ---
+// Al mover el slider de una gráfica, estas referencias permiten que el
+// propio modelo 3D reaccione en vivo (ver buildTank/updateTankVisual y
+// buildGroundIndicator/updateGroundIndicator más abajo).
+let tankRefs = null;        // partes del tanque, para redimensionarlo según h(r)
+let groundIndicator = null; // franja sobre el terreno, para AP(x)/AV(x)
 
 const cameraAnim = { active: false, t0: 0, duration: 900, fromPos: new THREE.Vector3(), toPos: new THREE.Vector3(), fromTarget: new THREE.Vector3(), toTarget: new THREE.Vector3() };
 
@@ -896,6 +937,12 @@ function buildTerrain() {
   // --- Perímetro (marco del TERRENO COMPLETO — "el parque" del informe) ---
   buildPerimeter(W, L);
 
+  // --- Cotas visuales del terreno: 200 m (ancho) × 300 m (largo) ---
+  buildDimensionAnnotations(W, L);
+
+  // --- Franja indicadora (oculta hasta que se mueva un slider de AP/AV) ---
+  buildGroundIndicator();
+
   // --- Vida en la escena: personas, familia, perro, cometa y autos ---
   // Puramente decorativo: no son seleccionables ni afectan el raycasting,
   // igual que los árboles del área verde.
@@ -1040,6 +1087,41 @@ function buildTank(xCenter, zCenter, footprintWidth, footprintDepth) {
   scene.add(group);
   group.userData.selectId = "tank_group";
   registerSelectable("tank_group", group.children.slice(), group);
+
+  // Guardamos todo lo necesario para poder redimensionar el tanque en
+  // vivo (ver updateTankVisual) cuando el usuario mueva el slider de la
+  // gráfica h(r) = 3000/(πr²): las medidas "base" con las que se
+  // construyó la geometría, para escalar los meshes por proporción en
+  // vez de reconstruir geometría nueva en cada frame (mucho más barato).
+  tankRefs = { tank, band, cap, rVisBase: rVis, hVisBase: hVis, roofY, legH, tankX, tankZ };
+}
+
+/**
+ * Redimensiona el tanque ya construido para reflejar el radio `r`
+ * elegido en el slider de la gráfica interactiva h(r) = 3000/(πr²):
+ * a mayor radio, menor altura (y viceversa), exactamente como describe
+ * la función racional del informe. Solo cambia la ESCALA de los meshes
+ * ya existentes (nada de geometría nueva ni de romper el raycasting:
+ * sigue siendo el mismo objeto seleccionable de siempre).
+ */
+function updateTankVisual(r) {
+  if (!tankRefs) return;
+  const { tank, band, cap, rVisBase, hVisBase, roofY, legH } = tankRefs;
+  const rClamped = Math.min(Math.max(r, 2), 40); // mismo dominio que FUNCTION_DEFS.h
+  const hReal = MODEL.tanqueVolumen / (Math.PI * rClamped * rClamped);
+  const rVis = rClamped * 0.62;
+  const hVis = hReal * 0.62;
+  const rScale = rVis / rVisBase;
+  const hScale = hVis / hVisBase;
+
+  tank.scale.set(rScale, hScale, rScale);
+  tank.position.y = roofY + legH + hVis / 2;
+
+  band.scale.set(rScale, hScale, rScale);
+  band.position.y = roofY + legH + hVis / 2;
+
+  cap.scale.set(rScale, hScale, rScale);
+  cap.position.y = roofY + legH + hVis + (hVis * 0.22) / 2;
 }
 
 function buildEntrance() {
@@ -1090,6 +1172,186 @@ function buildPerimeter(W, L) {
   scene.add(group);
   group.userData.selectId = "perimeter_group";
   registerSelectable("perimeter_group", [front, back, left, right], group);
+}
+
+/* =====================================================================
+   COTAS DE DIMENSIÓN DEL TERRENO (200 m × 300 m)
+   Dos líneas de acotación "estilo plano arquitectónico" (línea +
+   líneas de extensión desde la arista real + remates + etiqueta),
+   dibujadas directamente en el espacio 3D — no son HTML/CSS, así que
+   giran, se alejan y se acercan junto con la cámara exactamente igual
+   que el resto del modelo y nunca afectan el layout responsive de la
+   interfaz. Puramente decorativas: no se agregan a selectableObjects.
+   ===================================================================== */
+const DIMENSION_COLOR = 0xA6432F; // mismo tono que --danger en el CSS
+
+/** Textura de una "etiqueta" con fondo tipo píldora para una medida (p. ej. "200 m"). */
+function makeDimensionLabelTexture(text) {
+  const scale = 4; // nitidez en pantallas de alta densidad (devicePixelRatio alto)
+  const w = 450, h = 192;
+  const c = document.createElement("canvas");
+  c.width = w * scale;
+  c.height = h * scale;
+  const ctx = c.getContext("2d");
+  ctx.scale(scale, scale);
+
+  const r = 20;
+  ctx.fillStyle = "rgba(202, 163, 47, 0.95)"; // ocre --gold, casi opaco
+  ctx.strokeStyle = "#ffffff";
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(r, 3);
+  ctx.arcTo(w - 3, 3, w - 3, h - 3, r);
+  ctx.arcTo(w - 3, h - 3, 3, h - 3, r);
+  ctx.arcTo(3, h - 3, 3, 3, r);
+  ctx.arcTo(3, 3, w - 3, 3, r);
+  ctx.closePath();
+  ctx.fill();
+  ctx.stroke();
+
+  ctx.fillStyle = "#000000";
+  ctx.font = "700 150px 'IBM Plex Mono', 'SFMono-Regular', monospace";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(text, w / 2, h / 2 + 2);
+
+  return new THREE.CanvasTexture(c);
+}
+
+/**
+ * Dibuja UNA línea de cota entre dos puntos reales del terreno (`from`,
+ * `to`), desplazada hacia afuera en la dirección `offsetDir` una
+ * distancia `offsetDist`, con su etiqueta de texto en el centro.
+ */
+function buildDimensionAnnotation({ from, to, offsetDir, offsetDist, labelText }) {
+  const group = new THREE.Group();
+  const mat = new THREE.LineBasicMaterial({ color: DIMENSION_COLOR });
+
+  const offset = offsetDir.clone().multiplyScalar(offsetDist);
+  const p1 = from.clone().add(offset);
+  const p2 = to.clone().add(offset);
+
+  // Líneas de extensión: conectan la arista real del terreno con la
+  // línea de cota desplazada (igual que en un plano arquitectónico).
+  [[from, p1], [to, p2]].forEach(([a, b]) => {
+    group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([a, b]), mat));
+  });
+
+  // Línea de cota principal, entre los dos extremos ya desplazados.
+  group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([p1, p2]), mat));
+
+  // Remates cortos y perpendiculares en cada extremo (marcan el límite exacto de la medida).
+  const dir = new THREE.Vector3().subVectors(p2, p1).normalize();
+  const perp = new THREE.Vector3(-dir.z, 0, dir.x).multiplyScalar(1.6);
+  [p1, p2].forEach((p) => {
+    const a = p.clone().addScaledVector(perp, -1);
+    const b = p.clone().addScaledVector(perp, 1);
+    group.add(new THREE.Line(new THREE.BufferGeometry().setFromPoints([a, b]), mat));
+  });
+
+  // Etiqueta: un sprite (siempre mirando a la cámara) con el texto, un
+  // poco más allá de la línea para que no la tape.
+  const mid = p1.clone().lerp(p2, 0.5).addScaledVector(offsetDir, 5);
+  mid.y += 0.05;
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: makeDimensionLabelTexture(labelText),
+    depthTest: false,
+    depthWrite: false,
+    transparent: true,
+  }));
+  sprite.scale.set(9.5, 4.05, 1); // proporción 450x192 de makeDimensionLabelTexture
+  sprite.position.copy(mid);
+  sprite.renderOrder = 10;
+  group.add(sprite);
+
+  return group;
+}
+
+/** Las dos cotas del terreno completo: ancho (200 m) y largo (300 m). */
+function buildDimensionAnnotations(W, L) {
+  const halfW = W / 2;
+  const y = 0.1; // ligeramente sobre el suelo, evita parpadeo (z-fighting)
+  const group = new THREE.Group();
+  group.name = "dimensionAnnotations";
+
+  // Ancho (eje x): cota frente a la entrada, debajo del terreno en el croquis.
+  group.add(buildDimensionAnnotation({
+    from: new THREE.Vector3(-halfW, y, 0),
+    to: new THREE.Vector3(halfW, y, 0),
+    offsetDir: new THREE.Vector3(0, 0, -1),
+    offsetDist: 15,
+    labelText: `${W} m`,
+  }));
+
+  // Largo (eje z): cota a la derecha del terreno.
+  group.add(buildDimensionAnnotation({
+    from: new THREE.Vector3(halfW, y, 0),
+    to: new THREE.Vector3(halfW, y, L),
+    offsetDir: new THREE.Vector3(1, 0, 0),
+    offsetDist: 15,
+    labelText: `${L} m`,
+  }));
+
+  scene.add(group);
+  return group;
+}
+
+/* =====================================================================
+   FRANJA INDICADORA EN VIVO (gráficas interactivas AP(x) / AV(x))
+   El informe ya describe el modelo algebraico de AP y AV como si el
+   ancho x coincidiera con el borde de 200 m del terreno (ver callout
+   en contentData.parqueo). Esta franja es, literalmente, ese mismo
+   borde dibujado a escala real sobre el terreno: al mover el slider de
+   la gráfica, "recorta" el terreno en vivo tal como lo hace la
+   función, sin tocar ni mover ningún objeto real de la escena (autos,
+   árboles, el edificio...) — así no hay riesgo de romper el resto del
+   modelo. Es un único mesh reutilizado (solo se reescala/reposiciona,
+   nunca se reconstruye) para que mover el slider sea prácticamente
+   gratis en la GPU, incluso en modo rendimiento.
+   ===================================================================== */
+const GROUND_INDICATOR_COLOR = { AP: 0x5C7267, AV: 0x4F7A52 };
+
+function buildGroundIndicator() {
+  const geo = new THREE.BoxGeometry(1, 0.16, 10);
+  const mat = new THREE.MeshStandardMaterial({
+    color: GROUND_INDICATOR_COLOR.AP,
+    transparent: true,
+    opacity: 0.6,
+    roughness: 0.8,
+    depthWrite: false,
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.visible = false;
+  mesh.renderOrder = 4;
+  scene.add(mesh);
+  groundIndicator = { mesh };
+}
+
+/**
+ * Mueve/reescala la franja según la gráfica activa (`key`: "AP" o "AV")
+ * y el valor `x` del slider. Para cualquier otra gráfica (h, P, I) la
+ * oculta — no todas las funciones tienen un análogo geométrico directo.
+ */
+function updateGroundIndicator(key, x) {
+  if (!groundIndicator) return;
+  if (key !== "AP" && key !== "AV") {
+    groundIndicator.mesh.visible = false;
+    return;
+  }
+  const { mesh } = groundIndicator;
+  const halfW = MODEL.terrenoAncho / 2;
+  const xClamped = Math.min(Math.max(x, 0), MODEL.terrenoAncho);
+
+  // AP crece desde el borde izquierdo; AV muestra el ancho que queda
+  // (200 − x) creciendo desde el borde derecho — el mismo "lo que gana
+  // una zona lo pierde la otra" que ya explica el panel de AV(x).
+  const width = key === "AP" ? xClamped : MODEL.terrenoAncho - xClamped;
+  const startX = key === "AP" ? -halfW : halfW - width;
+
+  mesh.material.color.setHex(GROUND_INDICATOR_COLOR[key]);
+  mesh.visible = width > 0.05;
+  mesh.scale.x = Math.max(width, 0.05);
+  mesh.position.set(startX + width / 2, 0.09, 5);
 }
 
 /* =====================================================================
