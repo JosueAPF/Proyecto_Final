@@ -227,6 +227,7 @@ const contentData = {
   taquilla: {
     navLabel: "Ingreso de Taquilla",
     linkedObject: "entrance_group",
+    enterTheatre: true,
     kicker: "Función cuadrática y optimización",
     title: "Ingreso en taquilla y su optimización",
     body: [
@@ -234,6 +235,7 @@ const contentData = {
       "Al multiplicar precio y asistencia se obtiene una función cuadrática que abre hacia abajo (a = −2,000 &lt; 0), por lo que su vértice es un máximo.",
       "El dominio se restringe a [0, 5] porque la asistencia no puede superar los 2,000 espectadores de capacidad.",
       "En t = 2.5 (una reducción de Q25) el ingreso alcanza su máximo: boleto a <b>Q75</b>, <b>1,500</b> espectadores, ingreso de <b>Q112,500</b>.",
+      "Por la puerta de la taquilla se entra al teatro: adentro, cada espectador ocupa una de las <b>2,000 butacas</b> y el slider de la gráfica llena o vacía la sala en vivo.",
     ],
     formulas: [
       { latex: "p(t) = 100 - 10t \\qquad E(t) = 1{,}000 + 200t", caption: "Precio y asistencia en función de t" },
@@ -249,16 +251,19 @@ const contentData = {
   edificioTeatro: {
     navLabel: null,
     linkedObject: "theatre_building",
+    enterTheatre: true,
     kicker: "Elemento fijo del modelo",
     title: "Edificio del teatro",
     body: [
       "A diferencia del parqueo y el área verde, la superficie del teatro se trató como un <strong>supuesto de diseño fijo</strong>: 10,000 m². Como el ancho está fijado por el terreno (200 m), el largo queda determinado directamente.",
       "El tanque cilíndrico se apoya sobre el techo del edificio como representación simbólica, sin relación de escala con la estructura.",
+      "Al entrar se ven el escenario, la platea (1,400 butacas) y el balcón (600): <b>2,000</b> en total, la capacidad del modelo de ingreso en taquilla. Mueve el slider para ver cómo cambia la asistencia.",
     ],
     formulas: [
       { latex: "\\text{Largo} = \\dfrac{10{,}000\\text{ m}^2}{200\\text{ m}} = 50\\text{ m}", caption: "Largo del teatro, con área y ancho fijos" },
     ],
     tags: ["Valor fijo", "10,000 m²"],
+    chart: { key: "I", highlightX: 2.5, highlightLabel: "t = 2.5 → Q112,500" },
   },
 };
 
@@ -349,6 +354,15 @@ function selectContent(id, opts = {}) {
     bodyWrap.appendChild(el);
   });
   root.appendChild(bodyWrap);
+
+  if (entry.enterTheatre) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "enter-theatre-btn";
+    btn.innerHTML = '<span>Entrar al teatro</span><svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round"/></svg>';
+    btn.addEventListener("click", enterTheatre);
+    root.appendChild(btn);
+  }
 
   if (entry.callout) {
     const c = document.createElement("div");
@@ -663,12 +677,14 @@ function destroyCharts() {
 function syncSceneWithChart(key, x) {
   if (key === "h") updateTankVisual(x);
   if (key === "AP" || key === "AV") updateGroundIndicator(key, x);
+  if (key === "I") setTheatreAttendance(x); // t → asistencia E(t) = 1000 + 200t (butacas ocupadas dentro del teatro)
 }
 
 // Cada vez que se reconstruye el panel derecho hay que limpiar gráficas viejas.
 const originalSelectContent = selectContent;
 // (envolvemos la función para asegurar limpieza sin duplicar lógica arriba)
 function selectContentWithCleanup(id, opts) {
+  if (insideTheatre) exitTheatre({ instant: true }); // navegar a otra sección = salir del teatro
   destroyCharts();
   originalSelectContent(id, opts);
 }
@@ -1263,9 +1279,9 @@ function makeDimensionLabelTexture(text) {
  * `to`), desplazada hacia afuera en la dirección `offsetDir` una
  * distancia `offsetDist`, con su etiqueta de texto en el centro.
  */
-function buildDimensionAnnotation({ from, to, offsetDir, offsetDist, labelText }) {
+function buildDimensionAnnotation({ from, to, offsetDir, offsetDist, labelText, color = DIMENSION_COLOR }) {
   const group = new THREE.Group();
-  const mat = new THREE.LineBasicMaterial({ color: DIMENSION_COLOR });
+  const mat = new THREE.LineBasicMaterial({ color });
 
   const offset = offsetDir.clone().multiplyScalar(offsetDist);
   const p1 = from.clone().add(offset);
@@ -1331,6 +1347,29 @@ function buildDimensionAnnotations(W, L) {
     offsetDist: 15,
     labelText: `${L} m`,
   }));
+
+  // Cotas por ÁREA (sobre el alto/profundidad, no el ancho: todas miden
+  // 200 m de ancho). Cadena de cotas en el costado izquierdo, una por
+  // franja, cada una con el color de su zona. Se calculan a partir de
+  // MODEL, así que siempre suman exactamente L = 300 m.
+  const parqueoD = MODEL.xDiseno;                  // 75 m
+  const teatroD = MODEL.teatroArea / W;            // 50 m
+  const verdeD = L - parqueoD - teatroD;           // 175 m
+  const bands = [
+    { z0: 0,                  z1: parqueoD,                 color: 0x4A4D52, label: `${parqueoD} m` },
+    { z0: parqueoD,           z1: parqueoD + teatroD,       color: 0x8A6A2E, label: `${teatroD} m` },
+    { z0: parqueoD + teatroD, z1: L,                        color: 0x2F5E34, label: `${verdeD} m` },
+  ];
+  bands.forEach((b) => {
+    group.add(buildDimensionAnnotation({
+      from: new THREE.Vector3(-halfW, y, b.z0),
+      to: new THREE.Vector3(-halfW, y, b.z1),
+      offsetDir: new THREE.Vector3(-1, 0, 0),
+      offsetDist: 32, // más allá del edificio (que se asoma del terreno)
+      labelText: b.label,
+      color: b.color,
+    }));
+  });
 
   scene.add(group);
   return group;
@@ -1612,7 +1651,7 @@ function buildKiteFlyer(position) {
 
 /** Auto estacionado, muy simplificado: caja para la carrocería, caja más
  * pequeña y oscura para la cabina/vidrios, y cuatro ruedas cilíndricas. */
-function buildCar(x, z, color, rotationY) {
+function buildCar(x, z, color, rotationY, { alarm = false } = {}) {
   const group = new THREE.Group();
   const bodyMat = new THREE.MeshStandardMaterial({ color, roughness: 0.4, metalness: 0.35 });
   const glassMat = new THREE.MeshStandardMaterial({ color: 0x2A3A3A, roughness: 0.2, metalness: 0.6 });
@@ -1640,6 +1679,55 @@ function buildCar(x, z, color, rotationY) {
   group.position.set(x, 0, z);
   group.rotation.y = rotationY;
   scene.add(group);
+
+  // Auto con la alarma activada: las 4 luces direccionales (esquinas)
+  // parpadean al unísono. Solo materiales emisivos + un halo aditivo:
+  // sin PointLights, así que cuesta casi nada en móviles de 4 GB.
+  if (alarm) {
+    const lightMat = new THREE.MeshStandardMaterial({
+      color: 0xFF9A1F, emissive: 0xFF7A00, emissiveIntensity: 0, roughness: 0.4,
+    });
+    const lightGeo = new THREE.BoxGeometry(0.14, 0.26, 0.42);
+    const haloMat = new THREE.SpriteMaterial({
+      map: getAlarmHaloTexture(), color: 0xFF9A1F, transparent: true,
+      opacity: 0, depthWrite: false, blending: THREE.AdditiveBlending,
+    });
+    [[-2.14, -0.7], [-2.14, 0.7], [2.14, -0.7], [2.14, 0.7]].forEach(([lx, lz]) => {
+      const lamp = new THREE.Mesh(lightGeo, lightMat);
+      lamp.position.set(lx, 0.85, lz);
+      group.add(lamp);
+      const halo = new THREE.Sprite(haloMat);
+      halo.scale.set(2.6, 2.6, 1);
+      halo.position.set(lx * 1.04, 0.9, lz);
+      group.add(halo);
+    });
+    animatedCreatures.push({
+      update(delta, elapsed) {
+        // Onda cuadrada ~2.5 Hz, como el "pip-pip" de una alarma real.
+        const on = (elapsed * 2.5) % 1 < 0.5;
+        lightMat.emissiveIntensity = on ? 3 : 0;
+        haloMat.opacity = on ? 0.9 : 0;
+      },
+    });
+  }
+  return group;
+}
+
+let _alarmHaloTexture = null;
+/** Resplandor radial suave (una sola textura compartida). */
+function getAlarmHaloTexture() {
+  if (_alarmHaloTexture) return _alarmHaloTexture;
+  const c = document.createElement("canvas");
+  c.width = c.height = 64;
+  const g = c.getContext("2d");
+  const grad = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  grad.addColorStop(0, "rgba(255,255,255,1)");
+  grad.addColorStop(0.35, "rgba(255,255,255,0.45)");
+  grad.addColorStop(1, "rgba(255,255,255,0)");
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 64, 64);
+  _alarmHaloTexture = new THREE.CanvasTexture(c);
+  return _alarmHaloTexture;
 }
 
 /** Coloca varios autos dentro del lote de parqueo, en dos filas que
@@ -1665,7 +1753,9 @@ function buildParkedCars(halfW, parqueoDepth) {
       // Se dejan un par de espacios vacíos para que no se vea "empacado".
       if (rowIdx === 1 && colIdx === 4) return;
       if (rowIdx === 2 && colIdx === 1) return;
-      buildCar(x, z, bodyColors[i % bodyColors.length], colIdx % 2 === 0 ? 0 : Math.PI);
+      // Un auto de la primera fila (visible desde la vista general) tiene la alarma activada.
+      const alarm = rowIdx === 0 && colIdx === 3;
+      buildCar(x, z, bodyColors[i % bodyColors.length], colIdx % 2 === 0 ? 0 : Math.PI, { alarm });
       i++;
     });
   });
@@ -2700,6 +2790,7 @@ function updateCameraAnim() {
 
 /* --- Raycasting: clic/tap sobre el visor --- */
 function onPointerUp(event) {
+  if (insideTheatre || theatreBusy) return; // el exterior está oculto: no seleccionar nada
   const holder = document.getElementById("canvas-holder");
   const rect = holder.getBoundingClientRect();
   pointer.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
@@ -2777,7 +2868,500 @@ function animate() {
   updateWeatherAnim();
   updateRain(delta);
   controls.update();
+  if (insideTheatre) clampCameraToHall();
   renderer.render(scene, camera);
+}
+
+/* =====================================================================
+   INTERIOR DEL TEATRO (platea, balcón, escenario y telón)
+   ---------------------------------------------------------------------
+   Es un grupo 3D más dentro de la MISMA escena. Se construye la primera
+   vez que alguien entra (no al cargar la página), así que no cuesta nada
+   de memoria ni de arranque en móviles. Mientras se está adentro, el
+   exterior se oculta y se apagan sol/lluvia/niebla; al salir, todo se
+   restaura tal cual estaba.
+
+   Las 2,000 butacas (1,400 de platea + 600 de balcón = la capacidad del
+   modelo) se dibujan con InstancedMesh: miles de butacas en pocas
+   llamadas de dibujo. La asistencia viene del modelo de ingreso:
+        E(t) = 1000 + 200t     p(t) = 100 − 10t     I(t) = p(t)·E(t)
+   y se controla con el slider de la gráfica I(t) o con el del propio
+   interior.
+   ===================================================================== */
+const HALL = { halfW: 32, z0: -16, z1: 78, h: 26 };
+const THEATRE_VIEWS = {
+  platea:    { pos: new THREE.Vector3(0, 5.4, 53),   target: new THREE.Vector3(0, 4, 0) },
+  balcon:    { pos: new THREE.Vector3(0, 12.6, 75),  target: new THREE.Vector3(0, 5, 0) },
+  escenario: { pos: new THREE.Vector3(0, 3.1, 4),    target: new THREE.Vector3(0, 5.5, 46) },
+};
+const THEATRE_CAPACITY = 2000;
+
+let theatreInterior = null;   // se crea al primer ingreso
+let insideTheatre = false;
+let theatreBusy = false;
+let theatreT = 2.5;           // t del modelo de ingreso (máximo en t = 2.5)
+let theatreSaved = null;      // estado del exterior para restaurarlo al salir
+
+function theatreRng(seed) {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6D2B79F5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+}
+
+function makeCurtainTexture() {
+  const c = document.createElement("canvas");
+  c.width = 128; c.height = 8;
+  const g = c.getContext("2d");
+  for (let x = 0; x < 128; x++) {
+    const s = 0.5 + 0.5 * Math.sin((x / 128) * Math.PI * 2 * 6);
+    const v = Math.round(70 + 90 * s);
+    g.fillStyle = `rgb(${v + 40},${Math.round(v * 0.18)},${Math.round(v * 0.22)})`;
+    g.fillRect(x, 0, 1, 8);
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  tex.wrapS = THREE.RepeatWrapping;
+  return tex;
+}
+
+function makeBackdropTexture() {
+  const c = document.createElement("canvas");
+  c.width = 512; c.height = 192;
+  const g = c.getContext("2d");
+  const grad = g.createLinearGradient(0, 0, 0, 192);
+  grad.addColorStop(0, "#1B1F4B");
+  grad.addColorStop(0.55, "#7A4A7A");
+  grad.addColorStop(0.85, "#E8944A");
+  grad.addColorStop(1, "#F4C47A");
+  g.fillStyle = grad;
+  g.fillRect(0, 0, 512, 192);
+  g.fillStyle = "rgba(255,255,255,0.8)";
+  const r = theatreRng(5);
+  for (let i = 0; i < 70; i++) g.fillRect(r() * 512, r() * 90, 1.4, 1.4);   // estrellas
+  g.fillStyle = "#1A1626";                                                  // siluetas de ciudad
+  let x = 0;
+  while (x < 512) {
+    const w = 14 + r() * 26, h = 26 + r() * 70;
+    g.fillRect(x, 192 - h, w, h);
+    x += w + 2;
+  }
+  const tex = new THREE.CanvasTexture(c);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+function buildTheatreInterior() {
+  const group = new THREE.Group();
+  group.name = "theatreInterior";
+  group.visible = false;
+  const { halfW, z0, z1, h } = HALL;
+  const W2 = halfW * 2;
+
+  const mat = (color, extra = {}) => new THREE.MeshStandardMaterial({ color, roughness: 0.85, ...extra });
+  const addBox = (w, hh, d, m, x, y, z) => {
+    const mesh = new THREE.Mesh(new THREE.BoxGeometry(w, hh, d), m);
+    mesh.position.set(x, y, z);
+    group.add(mesh);
+    return mesh;
+  };
+
+  // ---------- Luces propias del interior (sin PointLights: móviles) ----------
+  group.add(new THREE.AmbientLight(0xFFE6C4, 1.7));
+  group.add(new THREE.HemisphereLight(0xFFF1D6, 0x4A2E22, 0.9));
+  const key = new THREE.DirectionalLight(0xFFE9C8, 1.0);
+  key.position.set(0, 24, 30);
+  const keyTarget = new THREE.Object3D();
+  keyTarget.position.set(0, 0, 20);
+  group.add(key, keyTarget);
+  key.target = keyTarget;
+  if (!LOW_POWER_DEVICE) {
+    const spot = new THREE.SpotLight(0xFFE0A8, 3.2, 0, 0.62, 0.55, 0);
+    spot.position.set(0, 23, 14);
+    const spotTarget = new THREE.Object3D();
+    spotTarget.position.set(0, 1.4, -4);
+    group.add(spot, spotTarget);
+    spot.target = spotTarget;
+  }
+
+  // ---------- Sala: cascarón, piso, escenario ----------
+  const shell = new THREE.Mesh(
+    new THREE.BoxGeometry(W2, h, z1 - z0),
+    mat(0xCDB892, { side: THREE.BackSide })
+  );
+  shell.position.set(0, h / 2, (z0 + z1) / 2);
+  group.add(shell);
+
+  addBox(W2, 0.2, z1 - z0, mat(0x3B2A22), 0, -0.1, (z0 + z1) / 2);                 // piso base
+  addBox(W2, 1.4, 24, mat(0x9A7449, { roughness: 0.6 }), 0, 0.7, -4);              // tarima del escenario
+  addBox(W2, 0.18, 0.5, mat(0xD4A63A, { emissive: 0x4A3508 }), 0, 1.45, 8.2);       // borde dorado
+
+  // Telón de fondo pintado
+  const backdrop = new THREE.Mesh(
+    new THREE.PlaneGeometry(W2 - 2, 22),
+    new THREE.MeshBasicMaterial({ map: makeBackdropTexture() })
+  );
+  backdrop.position.set(0, 12.4, z0 + 0.3);
+  group.add(backdrop);
+
+  // Proscenio (arco que enmarca el escenario)
+  const wallMat = mat(0xD9C7A0);
+  addBox(9, h, 1.5, wallMat, -27.5, h / 2, 8.5);
+  addBox(9, h, 1.5, wallMat, 27.5, h / 2, 8.5);
+  addBox(46, 8.6, 1.5, mat(0x7A1F2B), 0, 21.7, 8.5);
+  addBox(46, 0.35, 1.7, mat(0xD4A63A, { emissive: 0x4A3508 }), 0, 17.45, 8.5);
+
+  // Telón rojo (dos hojas que se abren/cierran)
+  const curtainTex = makeCurtainTexture();
+  const curtainMat = new THREE.MeshStandardMaterial({ map: curtainTex, roughness: 0.9 });
+  const curtainL = new THREE.Mesh(new THREE.BoxGeometry(1, 16, 0.7), curtainMat);
+  const curtainR = new THREE.Mesh(new THREE.BoxGeometry(1, 16, 0.7), curtainMat);
+  curtainL.position.y = curtainR.position.y = 9.4;
+  curtainL.position.z = curtainR.position.z = 7.4;
+  group.add(curtainL, curtainR);
+
+  // ---------- Platea: piso en rampa + 28 filas ----------
+  const slope = 0.12 / 1.4;                 // cada fila sube 0.12 m
+  const rampA = 11, rampB = 52;
+  const rampLen = Math.hypot(rampB - rampA, (rampB - rampA) * slope);
+  const ramp = new THREE.Mesh(new THREE.BoxGeometry(W2, 0.3, rampLen), mat(0x5A2430));
+  ramp.rotation.x = -Math.atan(slope);
+  ramp.position.set(0, ((rampA - 13) * slope + (rampB - 13) * slope) / 2 - 0.15, (rampA + rampB) / 2);
+  group.add(ramp);
+  addBox(W2, 0.3, 28, mat(0x4A2430), 0, 3.15, 64);                                 // piso bajo el balcón
+
+  // ---------- Balcón ----------
+  const balY = (j) => 8.0 + 0.28 * j;
+  addBox(W2, 0.6, 24, mat(0x6E5A3A), 0, 7.4, 66);                                  // losa
+  for (let j = 0; j < 12; j++) {                                                    // gradas
+    const top = balY(j);
+    addBox(W2 - 2, top - 7.7, 1.4, mat(0x5A2430), 0, (7.7 + top) / 2, 58 + 1.4 * j);
+  }
+  addBox(W2, 1.0, 0.3, mat(0x7A1F2B), 0, 8.2, 54.1);                                // baranda
+  addBox(W2, 0.12, 0.45, mat(0xD4A63A, { emissive: 0x4A3508 }), 0, 8.75, 54.1);
+  const colMat = mat(0xB8A57C);
+  [-28, -14, 14, 28].forEach((x) => addBox(1.2, 4.5, 1.2, colMat, x, 5.5, 55));
+
+  // ---------- Butacas (InstancedMesh) ----------
+  const seats = [];   // { x, y, z, rot, zone }
+  const rowFrame = (z, x, zone) => {
+    const rot = 0.45 * Math.atan2(x, z + 6);
+    return rot;
+  };
+  for (let i = 0; i < 28; i++) {
+    for (let k = 0; k < 50; k++) {
+      const x = (k < 25 ? -(2 + k) : (2 + (k - 25)));
+      const z = 14 + 1.4 * i + 0.0022 * x * x;
+      seats.push({ x, y: (z - 13) * slope, z, rot: rowFrame(z, x), zone: 0 });
+    }
+  }
+  for (let j = 0; j < 12; j++) {
+    for (let k = 0; k < 50; k++) {
+      const x = (k < 25 ? -(2 + k) : (2 + (k - 25)));
+      const z = 58 + 1.4 * j + 0.0015 * x * x;
+      seats.push({ x, y: balY(j), z, rot: rowFrame(z, x), zone: 1 });
+    }
+  }
+
+  const cushionGeo = new THREE.BoxGeometry(0.85, 0.22, 0.8);
+  cushionGeo.translate(0, 0.46, 0);
+  const backGeo = new THREE.BoxGeometry(0.85, 0.75, 0.12);
+  backGeo.translate(0, 0.92, 0.36);
+  const seatMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.7 });
+  const cushions = new THREE.InstancedMesh(cushionGeo, seatMat, seats.length);
+  const backs = new THREE.InstancedMesh(backGeo, seatMat, seats.length);
+  cushions.frustumCulled = backs.frustumCulled = false;
+
+  const rnd = theatreRng(11);
+  const m4 = new THREE.Matrix4();
+  const q = new THREE.Quaternion();
+  const yAxis = new THREE.Vector3(0, 1, 0);
+  const one = new THREE.Vector3(1, 1, 1);
+  const col = new THREE.Color();
+  const seatMatrices = [];
+  seats.forEach((s, idx) => {
+    q.setFromAxisAngle(yAxis, s.rot);
+    m4.compose(new THREE.Vector3(s.x, s.y, s.z), q, one);
+    cushions.setMatrixAt(idx, m4);
+    backs.setMatrixAt(idx, m4);
+    seatMatrices.push(m4.clone());
+    col.setHSL(s.zone === 0 ? 0.985 : 0.97, 0.62, 0.2 + rnd() * 0.04);
+    cushions.setColorAt(idx, col);
+    backs.setColorAt(idx, col);
+  });
+  group.add(cushions, backs);
+
+  // ---------- Público: torso + cabeza, uno por butaca ocupada ----------
+  const order = seats.map((_, i) => i);
+  const sr = theatreRng(77);
+  for (let i = order.length - 1; i > 0; i--) {          // mezcla (Fisher–Yates) para que no se vea "en ola"
+    const j = Math.floor(sr() * (i + 1));
+    [order[i], order[j]] = [order[j], order[i]];
+  }
+  const torsoGeo = new THREE.BoxGeometry(0.5, 0.55, 0.28);
+  torsoGeo.translate(0, 0.92, -0.06);
+  const headGeo = new THREE.SphereGeometry(0.2, 8, 6);
+  headGeo.translate(0, 1.44, -0.04);
+  const peopleMat = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: 0.85 });
+  const torsos = new THREE.InstancedMesh(torsoGeo, peopleMat, seats.length);
+  const heads = new THREE.InstancedMesh(headGeo, peopleMat, seats.length);
+  torsos.frustumCulled = heads.frustumCulled = false;
+  const shirts = [0x2F4A45, 0x8A5A63, 0xB9822E, 0x3D5A73, 0x6E4C17, 0x555A63, 0x37423A, 0xC9573F, 0x4F6B8A];
+  const skins = [0xC9A57B, 0xE0B98F, 0x9B7350, 0x6E4A32, 0xF0CBA6];
+  const pr = theatreRng(99);
+  order.forEach((seatIdx, i) => {
+    torsos.setMatrixAt(i, seatMatrices[seatIdx]);
+    heads.setMatrixAt(i, seatMatrices[seatIdx]);
+    torsos.setColorAt(i, col.setHex(shirts[Math.floor(pr() * shirts.length)]));
+    heads.setColorAt(i, col.setHex(skins[Math.floor(pr() * skins.length)]));
+  });
+  group.add(torsos, heads);
+
+  // ---------- Decoración: pilastras, lámparas, vigas, puertas ----------
+  const pilMat = mat(0xB8A57C);
+  const sconceMat = new THREE.MeshBasicMaterial({ color: 0xFFD98A });
+  for (let z = 14; z <= 76; z += 8) {
+    [-1, 1].forEach((sd) => {
+      addBox(1.0, h, 1.2, pilMat, sd * (halfW - 0.5), h / 2, z);
+      addBox(0.25, 0.7, 0.5, sconceMat, sd * (halfW - 1.2), 6.5, z + 4);
+    });
+  }
+  const lampGeo = new THREE.SphereGeometry(0.55, 10, 8);
+  const lampMat = new THREE.MeshBasicMaterial({ color: 0xFFE2A8 });
+  [10, 30, 50, 68].forEach((z) => {
+    [-18, -6, 6, 18].forEach((x) => {
+      const lamp = new THREE.Mesh(lampGeo, lampMat);
+      lamp.position.set(x, h - 1.8, z);
+      group.add(lamp);
+      addBox(0.08, 1.4, 0.08, pilMat, x, h - 0.9, z);
+    });
+  });
+  const beamMat = mat(0x6E5A3A);
+  [0, 20, 40, 60].forEach((z) => addBox(W2, 0.8, 1.0, beamMat, 0, h - 0.4, z));
+
+  const doorMat = mat(0x4A2E1F);
+  const exitMat = new THREE.MeshBasicMaterial({ color: 0x2BD16B });
+  [-8, 8].forEach((x) => {
+    addBox(4, 3.9, 0.3, doorMat, x, 5.25, z1 - 0.2);
+    addBox(1.6, 0.4, 0.1, exitMat, x, 7.4, z1 - 0.4);
+  });
+
+  // ---------- Escenario: luces, utilería y actores ----------
+  addBox(50, 0.3, 0.3, mat(0x2A2A2A), 0, 22, 4);
+  for (let i = -3; i <= 3; i++) {
+    const can = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.35, 1.2, 10), mat(0x1A1A1A));
+    can.position.set(i * 7, 21.2, 4);
+    can.rotation.x = 0.4;
+    group.add(can);
+  }
+  const beams = [];
+  const beamCols = [0xFFD27A, 0xFFFFFF, 0xFF9A7A];
+  const nBeams = LOW_POWER_DEVICE ? 2 : 3;
+  for (let i = 0; i < nBeams; i++) {
+    const cone = new THREE.Mesh(
+      new THREE.ConeGeometry(4, 20, 18, 1, true),
+      new THREE.MeshBasicMaterial({
+        color: beamCols[i], transparent: true, opacity: 0.09, depthWrite: false,
+        blending: THREE.AdditiveBlending, side: THREE.DoubleSide,
+      })
+    );
+    cone.position.set((i - (nBeams - 1) / 2) * 14, 12, 0);
+    group.add(cone);
+    beams.push(cone);
+  }
+
+  addBox(2.2, 1.6, 1.0, mat(0x5A3A22, { roughness: 0.6 }), 12, 2.2, -2);           // atril
+  const actors = [
+    { x: -7, z: 1, shirt: 0x7A1F2B, pants: 0x1F2A33 },
+    { x: 0, z: -4, shirt: 0xB9822E, pants: 0x2F2A26 },
+    { x: 7, z: 0, shirt: 0x2F4A45, pants: 0x35322C },
+  ];
+  actors.forEach((a) => {
+    const f = createFigure({ shirtColor: a.shirt, pantsColor: a.pants, scale: 1.05 });
+    f.group.position.set(a.x, 1.4, a.z);
+    f.group.rotation.y = Math.PI;      // mirando hacia el público
+    group.add(f.group);
+  });
+
+  scene.add(group);
+
+  // ---------- Animación (solo trabaja mientras se está dentro) ----------
+  const curtain = { open: 1, target: 1 };
+  const placeCurtains = () => {
+    const w = 5 + (23 - 5) * (1 - curtain.open);     // cerrado: 23 m cada hoja; abierto: 5 m
+    curtainL.scale.x = curtainR.scale.x = w;
+    curtainL.position.x = -23 + w / 2;
+    curtainR.position.x = 23 - w / 2;
+    curtainTex.repeat.set(Math.max(1, w / 4), 1);
+  };
+  placeCurtains();
+  animatedCreatures.push({
+    update(delta, elapsed) {
+      if (!insideTheatre) return;
+      if (Math.abs(curtain.open - curtain.target) > 0.002) {
+        const step = delta * 0.45;
+        curtain.open += Math.sign(curtain.target - curtain.open) * Math.min(step, Math.abs(curtain.target - curtain.open));
+        placeCurtains();
+      }
+      beams.forEach((b, i) => { b.rotation.z = Math.sin(elapsed * 0.6 + i * 2) * 0.12; });
+    },
+  });
+
+  theatreInterior = { group, torsos, heads, curtain };
+  applyTheatreAttendance();
+  return theatreInterior;
+}
+
+/** Cifras del modelo de ingreso para un valor t dado. */
+function theatreNumbers(t) {
+  const price = 100 - 10 * t;
+  const people = Math.round(1000 + 200 * t);
+  return { price, people, income: price * people };
+}
+
+function fmtInt(n) { return Math.round(n).toLocaleString("en-US"); }
+
+function applyTheatreAttendance() {
+  const { price, people, income } = theatreNumbers(theatreT);
+  if (theatreInterior) {
+    theatreInterior.torsos.count = people;
+    theatreInterior.heads.count = people;
+  }
+  const set = (id, v) => { const el = document.getElementById(id); if (el) el.textContent = v; };
+  set("th-att", fmtInt(people));
+  set("th-price", "Q" + fmtInt(price));
+  set("th-income", "Q" + fmtInt(income));
+  set("th-t", theatreT.toFixed(1));
+  const sl = document.getElementById("th-slider");
+  if (sl && Math.abs(parseFloat(sl.value) - theatreT) > 0.001) sl.value = theatreT;
+}
+
+/** Llamada por el slider de la gráfica I(t) y por el slider del interior. */
+function setTheatreAttendance(t) {
+  theatreT = Math.min(Math.max(t, 0), 5);
+  applyTheatreAttendance();
+}
+
+function setTheatreView(name) {
+  const v = THEATRE_VIEWS[name];
+  if (v) startCameraAnim(v.pos, v.target);
+}
+
+function enterTheatre() {
+  if (insideTheatre || theatreBusy) return;
+  theatreBusy = true;
+  if (window.matchMedia(MOBILE_LAYOUT_QUERY).matches) closePanels();
+  const veil = document.getElementById("theatre-veil");
+  if (veil) veil.classList.add("on");
+  setTimeout(() => {
+    doEnterTheatre();
+    if (veil) veil.classList.remove("on");
+    setTimeout(() => { theatreBusy = false; }, 300);
+  }, 280);
+}
+
+function doEnterTheatre() {
+  const interior = theatreInterior || buildTheatreInterior();
+  theatreSaved = {
+    bg: scene.background.clone(),
+    fogColor: scene.fog.color.clone(), fogNear: scene.fog.near, fogFar: scene.fog.far,
+    minD: controls.minDistance, maxD: controls.maxDistance,
+    maxPolar: controls.maxPolarAngle, pan: controls.enablePan,
+    hidden: [],
+  };
+  weatherAnim.active = false;
+  cameraAnim.active = false;
+  scene.children.forEach((c) => {
+    if (c.isLight || c === interior.group) return;
+    if (c.visible) { c.visible = false; theatreSaved.hidden.push(c); }
+  });
+  sunLight.visible = false;
+  hemiLight.visible = false;
+  scene.background.setHex(0x120E0C);
+  scene.fog.near = 1e5;
+  scene.fog.far = 2e5;
+  controls.minDistance = 1;
+  controls.maxDistance = 130;
+  controls.maxPolarAngle = Math.PI * 0.92;
+  controls.enablePan = false;
+
+  interior.group.visible = true;
+  insideTheatre = true;
+  document.getElementById("viewport").classList.add("inside-theatre");
+  const hud = document.getElementById("theatre-hud");
+  if (hud) hud.hidden = false;
+  applyTheatreAttendance();
+
+  const v = THEATRE_VIEWS.platea;
+  camera.position.copy(v.pos);
+  controls.target.copy(v.target);
+  controls.update();
+}
+
+function exitTheatre({ instant = false } = {}) {
+  if (!insideTheatre) return;
+  const finish = () => {
+    const s = theatreSaved;
+    theatreInterior.group.visible = false;
+    s.hidden.forEach((c) => { c.visible = true; });
+    sunLight.visible = true;
+    hemiLight.visible = true;
+    scene.background.copy(s.bg);
+    scene.fog.color.copy(s.fogColor);
+    scene.fog.near = s.fogNear;
+    scene.fog.far = s.fogFar;
+    controls.minDistance = s.minD;
+    controls.maxDistance = s.maxD;
+    controls.maxPolarAngle = s.maxPolar;
+    controls.enablePan = s.pan;
+    insideTheatre = false;
+    cameraAnim.active = false;
+    document.getElementById("viewport").classList.remove("inside-theatre");
+    const hud = document.getElementById("theatre-hud");
+    if (hud) hud.hidden = true;
+    const v = CAMERA_VIEWS.theatre_building;
+    camera.position.copy(v.pos);
+    controls.target.copy(v.target);
+    controls.update();
+  };
+  if (instant) { finish(); return; }
+  if (theatreBusy) return;
+  theatreBusy = true;
+  const veil = document.getElementById("theatre-veil");
+  if (veil) veil.classList.add("on");
+  setTimeout(() => {
+    finish();
+    if (veil) veil.classList.remove("on");
+    setTimeout(() => { theatreBusy = false; }, 300);
+  }, 280);
+}
+
+/** Mantiene la cámara dentro de la sala aunque el usuario orbite o haga zoom. */
+function clampCameraToHall() {
+  const p = camera.position;
+  p.x = Math.min(Math.max(p.x, -HALL.halfW + 1.5), HALL.halfW - 1.5);
+  p.y = Math.min(Math.max(p.y, 1.2), HALL.h - 2);
+  p.z = Math.min(Math.max(p.z, HALL.z0 + 1.5), HALL.z1 - 1.5);
+}
+
+function wireTheatreUI() {
+  const on = (id, fn) => { const el = document.getElementById(id); if (el) el.addEventListener("click", fn); };
+  on("th-exit", () => exitTheatre());
+  on("th-curtain", () => {
+    if (theatreInterior) theatreInterior.curtain.target = theatreInterior.curtain.target > 0.5 ? 0 : 1;
+  });
+  document.querySelectorAll("[data-theatre-view]").forEach((b) => {
+    b.addEventListener("click", () => setTheatreView(b.dataset.theatreView));
+  });
+  const sl = document.getElementById("th-slider");
+  if (sl) sl.addEventListener("input", () => setTheatreAttendance(parseFloat(sl.value)));
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && insideTheatre) exitTheatre();
+  });
 }
 
 function resetView() {
@@ -2836,6 +3420,8 @@ function wireUI() {
   if (closeNavBtn) closeNavBtn.addEventListener("click", closePanels);
   const closePanelBtn = document.getElementById("btn-close-panel");
   if (closePanelBtn) closePanelBtn.addEventListener("click", closePanels);
+
+  wireTheatreUI();
 }
 
 

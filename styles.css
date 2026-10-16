@@ -1,15 +1,6 @@
 /* =====================================================================
    SIMULADOR 3D — MODELADO MATEMÁTICO DE UN TEATRO
-   Hoja de estilos
-
-   Sistema de diseño
-   ------------------
-   Color:  papel cálido de fondo, tinta casi-negra, acento primario
-           verde bosque-azulado (navegación/interacción), acento
-           secundario ocre (resaltado de selección y datos clave).
-   Tipo:   Fraunces (serif, títulos) + IBM Plex Sans (UI/cuerpo) +
-           IBM Plex Mono (valores numéricos y fórmulas de apoyo).
-   Layout: nav izquierda / visor 3D central / panel derecho dinámico.
+   a ver si funciona bien xd
    ===================================================================== */
 
 :root {
@@ -787,4 +778,101 @@ a { color: var(--accent); }
   .side-nav, .info-panel { width: min(60vw, 320px); }
   .side-nav-scroll { padding: 12px 12px 10px; }
   .nav-footer { margin-top: 12px; padding-top: 10px; }
+}
+
+
+/* =====================================================================
+   INTERIOR DEL TEATRO — botón de entrada, HUD y transición
+   ===================================================================== */
+.enter-theatre-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  width: 100%;
+  margin: 6px 0 18px;
+  padding: 12px 16px;
+  background: var(--accent);
+  color: #fff;
+  border: 0;
+  border-radius: var(--radius-lg);
+  font-family: var(--font-body);
+  font-size: 14px;
+  font-weight: 600;
+  cursor: pointer;
+}
+.enter-theatre-btn:hover { background: var(--accent-ink); }
+
+.theatre-hud {
+  position: absolute;
+  inset: 0;
+  z-index: 6;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 14px;
+  pointer-events: none;
+}
+.theatre-hud[hidden] { display: none; }
+.theatre-hud > * { pointer-events: none; }
+.theatre-hud button, .theatre-hud input, .theatre-hud-card { pointer-events: auto; }
+
+.theatre-hud-bar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: flex-start;
+  justify-content: space-between;
+}
+.theatre-views { display: flex; flex-wrap: wrap; gap: 6px; }
+
+.theatre-hud-card {
+  align-self: flex-start;
+  max-width: min(100%, 440px);
+  background: rgba(252, 251, 248, 0.92);
+  backdrop-filter: blur(6px);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  padding: 10px 14px 12px;
+}
+.theatre-hud-kicker {
+  margin: 0 0 6px;
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gold);
+}
+.theatre-stats { display: flex; flex-wrap: wrap; gap: 4px 16px; font-size: 13px; color: var(--ink-soft); }
+.theatre-stats b { color: var(--ink); font-family: var(--font-mono); font-weight: 600; }
+.theatre-slider { display: flex; align-items: center; gap: 10px; margin-top: 8px; font-size: 12.5px; color: var(--ink-soft); }
+.theatre-slider b { font-family: var(--font-mono); color: var(--ink); }
+.theatre-slider input { flex: 1; min-width: 0; accent-color: var(--accent); }
+.theatre-hud-note { margin: 6px 0 0; font-family: var(--font-mono); font-size: 10.5px; color: var(--ink-faint); }
+
+/* Dentro del teatro se oculta el control del exterior (leyenda, clima, vista general) */
+.viewport.inside-theatre .viewport-topbar,
+.viewport.inside-theatre .viewport-hint { display: none; }
+.viewport.inside-theatre { background: #120E0C; }
+
+.theatre-veil {
+  position: absolute;
+  inset: 0;
+  z-index: 7;
+  background: #120E0C;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.28s ease;
+}
+.theatre-veil.on { opacity: 1; pointer-events: auto; }
+
+@media (max-width: 520px) {
+  .theatre-hud { padding: 10px; }
+  .theatre-hud-card { max-width: 100%; align-self: stretch; padding: 8px 12px 10px; }
+  .theatre-hud-note { display: none; }
+  .theatre-stats { font-size: 12px; gap: 2px 12px; }
+}
+@media (max-height: 480px) and (orientation: landscape) {
+  .theatre-hud-card { max-width: 340px; }
+  .theatre-hud-note, .theatre-hud-kicker { display: none; }
 }
