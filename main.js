@@ -25,12 +25,14 @@ import { OrbitControls } from "three/addons/controls/OrbitControls.js";
 
 /**
  * Mismo criterio que el breakpoint "modo cajón" de styles.css: ancho
- * 
+ * angosto (tablets en vertical) O dispositivo táctil sin mouse/trackpad
+ * (tablets grandes en horizontal, como el iPad Pro de 12.9" a 1366px,
+ * que por ancho solo quedaría en modo escritorio). Si cambias el CSS,
+ * actualiza esta cadena también para que ambos coincidan.
  */
 const MOBILE_LAYOUT_QUERY = "(max-width: 1024px), (hover: none) and (pointer: coarse)";
 
 /**
- * gracias claude code
  * "Modo rendimiento": se activa en equipos con GPU/RAM limitada —
  * típicamente cualquier teléfono — para evitar que la escena 3D los
  * sobrecaliente o los trabe. La señal más confiable es no tener
@@ -47,7 +49,10 @@ const LOW_POWER_DEVICE =
 
 /* =====================================================================
    1. CONSTANTES DEL MODELO MATEMÁTICO
-    uaremos 75 para todo x a ver...
+   Estas cifras son las mismas que aparecen en el informe: dimensiones
+   del terreno, valor de diseño x = 75 m, y datos del tanque cilíndrico.
+   Mantenerlas centralizadas evita "números mágicos" repetidos en el
+   código y permite recalcular todo si un valor cambia.
    ===================================================================== */
 const MODEL = {
   terrenoAncho: 200,      // m — ancho fijo del terreno (eje x del croquis)
@@ -95,7 +100,7 @@ const contentData = {
     title: "Modelado matemático de un teatro",
     body: [
       "Este proyecto traduce el encargo de diseño de un teatro —construido sobre un terreno de <strong>200 m × 300 m</strong>— en seis modelos matemáticos: dos funciones de área, una función racional para el tanque de agua, una función de perímetro y una función cuadrática de ingreso que se optimiza mediante el vértice de la parábola.",
-      "El enunciado original solo fija dos datos: las dimensiones del terreno y la capacidad del tanque (3,000 m³). Todo lo demás —el ancho del parqueo, el precio del boleto, la asistencia esperada— se construyó como un <em>supuesto de diseño</em> explícito, no como un dato impuesto.",
+      "El enunciado original solo fija dos datos: las dimensiones del terreno y la capacidad del tanque (3,000 m³). Todo lo demás —la profundidad del parqueo, el precio del boleto, la asistencia esperada— se construyó como un <em>supuesto de diseño</em> explícito, no como un dato impuesto.",
       "Usa el visor 3D para explorar el terreno: cada zona, el tanque y el ingreso principal son objetos que puedes seleccionar. Al hacerlo, este panel mostrará la función que los describe, su dominio y una gráfica interactiva.",
     ],
   },
@@ -130,20 +135,21 @@ const contentData = {
     kicker: "Disposición de las áreas",
     title: "Croquis y disposición del terreno",
     body: [
-      "Según la Figura 1 del informe, el área verde ocupa la <strong>franja superior de ancho completo</strong> (200 m). El teatro y el parqueo comparten la <strong>franja inferior</strong>, colocados lado a lado y cerca de la entrada principal: el teatro a la izquierda y el parqueo a la derecha.",
-      "Esa franja inferior tiene una profundidad de 125 m (los 300 m del terreno menos los 175 m de área verde). Dentro de ella, el ancho de cada zona se ajusta para reproducir exactamente las áreas requeridas por el modelo: 80 m para el teatro y 120 m para el parqueo.",
+      "El terreno se reparte en <strong>tres franjas apiladas</strong>, cada una del ancho completo del lote (200 m), una tras otra desde la entrada principal hacia el fondo: <b>parqueo</b>, luego <b>teatro</b>, y al fondo el <b>área verde</b>.",
+      "Esta disposición es, literalmente, la definición de cada función: como las tres franjas comparten el mismo ancho fijo de 200 m, la única variable que cambia el área de una franja es su <b>profundidad</b> — por eso AP(x) = 200x: 200 es el ancho fijo y x es la profundidad (variable) del parqueo.",
+      "El teatro tiene área fija (10,000 m²), así que su profundidad también es fija: 10,000 m² ÷ 200 m = 50 m. El área verde ocupa todo lo que sobra al fondo del terreno.",
       "El tanque cilíndrico se representa sobre el techo del teatro, como símbolo y sin escala real respecto al edificio — tal como lo indica el informe original.",
     ],
     table: {
       headers: ["Zona", "Dimensiones (visor 3D)", "Área"],
       rows: [
-        ["Teatro", "80 m × 125 m", "10,000 m²"],
-        ["Parqueo", "120 m × 125 m", "15,000 m²"],
+        ["Parqueo", "200 m × 75 m", "15,000 m²"],
+        ["Teatro", "200 m × 50 m", "10,000 m²"],
         ["Área verde", "200 m × 175 m", "35,000 m²"],
       ],
       highlightRow: -1,
     },
-    callout: "Nota de representación: el visor 3D prioriza fidelidad visual a la Figura 1 del informe. El modelo algebraico AP(x) = 200x trata el parqueo como si su lado mayor coincidiera con los 200 m del terreno — una simplificación habitual para reducir el área a una sola variable x, independiente de la forma exacta con que se dibuje el lote.<br><br>Verificación: 10,000 + 15,000 + 35,000 = <b>60,000 m²</b>, exactamente el área del terreno.",
+    callout: "El visor 3D ya NO es una simplificación aparte del modelo algebraico: cada franja mide, de verdad, 200 m de ancho, así que AP(x) = 200x es exactamente la profundidad del parqueo multiplicada por el ancho fijo del terreno — no una aproximación.<br><br>Verificación: 15,000 + 10,000 + 35,000 = <b>60,000 m²</b>, exactamente el área del terreno.",
   },
 
   parqueo: {
@@ -152,12 +158,12 @@ const contentData = {
     kicker: "Función lineal de área",
     title: "Área de parqueo",
     body: [
-      "El parqueo es un rectángulo cuyo largo es el ancho completo del terreno (200 m) y cuyo ancho es la variable de diseño <b>x</b>.",
-      "La pendiente 200 tiene una lectura directa: cada metro adicional de ancho asignado al parqueo aporta 200 m² de superficie.",
+      "El parqueo es un rectángulo cuyo largo es el ancho completo del terreno (200 m) y cuya profundidad es la variable de diseño <b>x</b>.",
+      "La pendiente 200 tiene una lectura directa: cada metro adicional de profundidad asignado al parqueo aporta 200 m² de superficie.",
       "El valor de diseño x = 75 m se obtuvo a partir de un estándar de planificación: 2,000 espectadores ÷ 4 = 500 espacios de estacionamiento, y 500 × 30 m² por vehículo = 15,000 m². Igualando <b>200x = 15,000</b> se despeja x = 75 m.",
     ],
     formulas: [
-      { latex: "AP(x) = 200x", caption: "Área de parqueo en función del ancho x" },
+      { latex: "AP(x) = 200x", caption: "Área de parqueo en función de la profundidad x" },
       { latex: "\\text{Dom}(AP) = \\{\\,x \\in \\mathbb{R} \\mid 0 < x < 250\\,\\}", caption: "Dominio: el parqueo debe existir y debe quedar terreno para el área verde" },
     ],
     tags: ["Función lineal", "Pendiente = 200"],
@@ -175,7 +181,7 @@ const contentData = {
       "Verificación de consistencia: la suma de las tres áreas es constante para cualquier x admisible, porque los términos en x se cancelan algebraicamente.",
     ],
     formulas: [
-      { latex: "AV(x) = 50{,}000 - 200x", caption: "Área verde en función del ancho de parqueo x" },
+      { latex: "AV(x) = 50{,}000 - 200x", caption: "Área verde en función de la profundidad del parqueo x" },
       { latex: "AP(x) + A_{teatro} + AV(x) = 60{,}000", caption: "Verificación: la suma permanece constante en todo el dominio" },
     ],
     tags: ["Función lineal", "Pendiente = −200"],
@@ -699,15 +705,17 @@ const DEFAULT_VIEW = {
 };
 
 // Vistas de cámara asociadas a cada objeto seleccionable (posición + mira).
-// Coordenadas alineadas con la nueva disposición: teatro y tanque a la
-// izquierda (x ≈ −60), parqueo a la derecha (x ≈ 40), área verde al fondo.
+// Coordenadas alineadas con el croquis vigente (franjas apiladas de
+// ancho completo): parqueo centrado en z≈37.5, teatro/tanque centrados
+// en z≈100 (el tanque, sobre una esquina del techo, en x≈−21), área
+// verde al fondo (sin cambios respecto a antes).
 const CAMERA_VIEWS = {
-  ground_parqueo: { pos: new THREE.Vector3(150, 95, 15), target: new THREE.Vector3(40, 0, 62.5) },
+  ground_parqueo: { pos: new THREE.Vector3(130, 100, -25), target: new THREE.Vector3(0, 0, 37.5) },
   ground_verde: { pos: new THREE.Vector3(140, 140, 262), target: new THREE.Vector3(0, 0, 212.5) },
-  tank_group: { pos: new THREE.Vector3(-165, 62, 105), target: new THREE.Vector3(-74, 24, 47) },
+  tank_group: { pos: new THREE.Vector3(-85, 55, 160), target: new THREE.Vector3(-21, 23, 94) },
   perimeter_group: { pos: DEFAULT_VIEW.pos.clone(), target: DEFAULT_VIEW.target.clone() },
   entrance_group: { pos: new THREE.Vector3(45, 30, -10), target: new THREE.Vector3(0, 4, 8) },
-  theatre_building: { pos: new THREE.Vector3(-165, 78, 150), target: new THREE.Vector3(-60, 14, 62.5) },
+  theatre_building: { pos: new THREE.Vector3(-120, 65, 190), target: new THREE.Vector3(0, 12, 100) },
 };
 
 // =====================================================================
@@ -893,17 +901,22 @@ function buildTerrain() {
   const L = MODEL.terrenoLargo;   // 300 — eje z
   const halfW = W / 2;
 
-  // Disposición según la Figura 1 del informe: el área verde ocupa la
-  // franja superior de ancho completo; el teatro y el parqueo comparten,
-  // lado a lado, la franja inferior cercana a la entrada principal.
-  const bandDepth = L - MODEL.verdeArea / W;              // 300 − 175 = 125 m
-  const zVerdeStart = bandDepth, zVerdeEnd = L;            // 125–300
-  const zBandCenter = bandDepth / 2;
+  // Disposición según el croquis vigente: TRES FRANJAS APILADAS en
+  // profundidad (eje z), cada una del ANCHO COMPLETO del terreno
+  // (200 m) — así es exactamente como están definidas las funciones del
+  // informe: AP(x) = 200x (200 = ancho fijo, x = profundidad variable
+  // del parqueo) y AV(x) = 50,000 − 200x. De la entrada hacia el fondo:
+  // parqueo → teatro → área verde.
+  const parqueoDepth = MODEL.xDiseno;                 // 75 m — valor de diseño x
+  const teatroDepth = MODEL.teatroArea / W;            // 10,000 / 200 = 50 m
+  const verdeDepth = L - parqueoDepth - teatroDepth;   // 300 − 75 − 50 = 175 m
 
-  const teatroWidth = MODEL.teatroArea / bandDepth;        // 10,000 / 125 = 80 m
-  const parqueoWidth = MODEL.parqueoArea / bandDepth;       // 15,000 / 125 = 120 m
-  const xTeatro = -halfW + teatroWidth / 2;                 // −60 (izquierda)
-  const xParqueo = -halfW + teatroWidth + parqueoWidth / 2; // 40 (derecha)
+  const zParqueoStart = 0, zParqueoEnd = parqueoDepth;
+  const zTeatroStart = zParqueoEnd, zTeatroEnd = zTeatroStart + teatroDepth;
+  const zVerdeStart = zTeatroEnd, zVerdeEnd = zVerdeStart + verdeDepth; // == L
+
+  const zParqueoCenter = (zParqueoStart + zParqueoEnd) / 2;
+  const zTeatroCenter = (zTeatroStart + zTeatroEnd) / 2;
 
   // --- Base del terreno ---
   const baseGeo = new THREE.PlaneGeometry(W + 10, L + 10);
@@ -914,22 +927,26 @@ function buildTerrain() {
   base.receiveShadow = true;
   scene.add(base);
 
-  // --- Zona: Parqueo (derecha de la franja inferior) ---
+  // --- Zona: Parqueo (franja inferior, ancho completo, junto a la entrada) ---
   const parkTex = makeParkingTexture();
-  addZone("ground_parqueo", 0x8B8D86, parqueoWidth, bandDepth, 0, zBandCenter, parkTex, true, xParqueo);
+  addZone("ground_parqueo", 0x8B8D86, W, parqueoDepth, 0, zParqueoCenter, parkTex, true, 0);
 
   // --- Zona: Área verde (franja superior, ancho completo) ---
   addZone("ground_verde", 0x7C9473, W, zVerdeEnd - zVerdeStart, 0, (zVerdeStart + zVerdeEnd) / 2, null);
   scatterTrees(zVerdeStart, zVerdeEnd, halfW);
 
-  // --- Franja base del teatro (izquierda de la franja inferior) ---
-  addZone(null, 0xCFC7AE, teatroWidth, bandDepth, -0.01, zBandCenter, null, false, xTeatro);
+  // --- Franja base del teatro (franja media, ancho completo) ---
+  addZone(null, 0xCFC7AE, W, teatroDepth, -0.01, zTeatroCenter, null, false, 0);
 
   // --- Edificio del teatro ---
-  buildTheatreBuilding(xTeatro, zBandCenter, teatroWidth, bandDepth);
+  // El EDIFICIO se dibuja con un ancho visual contenido (no los 200 m
+  // reales de la franja, que quedarían descomunales) — mismo criterio
+  // que ya usa buildTank para el tanque "sin escala".
+  const theatreVisualWidth = 110;
+  buildTheatreBuilding(0, zTeatroCenter, theatreVisualWidth, teatroDepth);
 
   // --- Tanque cilíndrico (sobre el techo del teatro) ---
-  buildTank(xTeatro, zBandCenter, teatroWidth, bandDepth);
+  buildTank(0, zTeatroCenter, theatreVisualWidth, teatroDepth);
 
   // --- Entrada principal (centrada, sobre el borde frontal) ---
   buildEntrance();
@@ -943,18 +960,28 @@ function buildTerrain() {
   // --- Franja indicadora (oculta hasta que se mueva un slider de AP/AV) ---
   buildGroundIndicator();
 
+  //provisional
+  const teatroVisualWidth = 110;
+buildTheatreBuilding(0, zTeatroCenter, teatroVisualWidth, teatroDepth);
+// --- Tanque cilíndrico (sobre el techo del teatro) ---
+buildTank(0, zTeatroCenter, teatroVisualWidth, teatroDepth);
+  
   // --- Vida en la escena: personas, familia, perro, cometa y autos ---
   // Puramente decorativo: no son seleccionables ni afectan el raycasting,
   // igual que los árboles del área verde.
-  buildLife({ xTeatro, xParqueo, teatroWidth, parqueoWidth, bandDepth, zVerdeStart, zVerdeEnd, halfW });
+  buildLife({
+    halfW, teatroVisualWidth, teatroVisualDepth: teatroDepth * 0.55,
+    zParqueoStart, zParqueoEnd, zTeatroStart, zTeatroEnd, zVerdeStart, zVerdeEnd,
+  });
 
+  
   // --- Mejoras del jardín: relieve suave, fuente, flores y árboles
   //     ornamentales. Se AGREGAN sobre lo anterior, sin quitar nada. ---
   buildGardenEnhancements({ zVerdeStart, zVerdeEnd, halfW });
 
   // --- Postes de luz: siempre visibles, su farol solo se enciende
   //     cuando el clima no es soleado (ver WEATHER_PRESETS / applyLampLevel). ---
-  buildLampPosts({ xParqueo, parqueoWidth });
+  buildLampPosts({ halfW, zParqueoStart, zParqueoEnd });
 }
 
 /** Crea una franja rectangular del terreno; si id no es null, es seleccionable. */
@@ -1298,11 +1325,11 @@ function buildDimensionAnnotations(W, L) {
 
 /* =====================================================================
    FRANJA INDICADORA EN VIVO (gráficas interactivas AP(x) / AV(x))
-   El informe ya describe el modelo algebraico de AP y AV como si el
-   ancho x coincidiera con el borde de 200 m del terreno (ver callout
-   en contentData.parqueo). Esta franja es, literalmente, ese mismo
-   borde dibujado a escala real sobre el terreno: al mover el slider de
-   la gráfica, "recorta" el terreno en vivo tal como lo hace la
+   Con el croquis vigente, el parqueo YA es literalmente una franja de
+   ancho completo (200 m) cuya PROFUNDIDAD es la variable de diseño x
+   — así que esta franja no es una simplificación aparte: es la propia
+   definición de AP(x) = 200x dibujada a escala real sobre el terreno.
+   Al mover el slider, "recorta" el terreno en vivo tal como lo hace la
    función, sin tocar ni mover ningún objeto real de la escena (autos,
    árboles, el edificio...) — así no hay riesgo de romper el resto del
    modelo. Es un único mesh reutilizado (solo se reescala/reposiciona,
@@ -1312,7 +1339,7 @@ function buildDimensionAnnotations(W, L) {
 const GROUND_INDICATOR_COLOR = { AP: 0x5C7267, AV: 0x4F7A52 };
 
 function buildGroundIndicator() {
-  const geo = new THREE.BoxGeometry(1, 0.16, 10);
+  const geo = new THREE.BoxGeometry(MODEL.terrenoAncho - 1, 0.16, 1); // ancho fijo; la profundidad se reescala
   const mat = new THREE.MeshStandardMaterial({
     color: GROUND_INDICATOR_COLOR.AP,
     transparent: true,
@@ -1339,19 +1366,21 @@ function updateGroundIndicator(key, x) {
     return;
   }
   const { mesh } = groundIndicator;
-  const halfW = MODEL.terrenoAncho / 2;
-  const xClamped = Math.min(Math.max(x, 0), MODEL.terrenoAncho);
+  const L = MODEL.terrenoLargo;
+  const teatroDepth = MODEL.teatroArea / MODEL.terrenoAncho; // 50 m, fijo
+  const xClamped = Math.min(Math.max(x, 0), L - teatroDepth);
 
-  // AP crece desde el borde izquierdo; AV muestra el ancho que queda
-  // (200 − x) creciendo desde el borde derecho — el mismo "lo que gana
-  // una zona lo pierde la otra" que ya explica el panel de AV(x).
-  const width = key === "AP" ? xClamped : MODEL.terrenoAncho - xClamped;
-  const startX = key === "AP" ? -halfW : halfW - width;
+  // AP crece desde la entrada (z=0): profundidad del parqueo = x.
+  // AV muestra la profundidad que le queda al área verde al otro
+  // extremo del terreno (L − teatro − x) — el mismo "lo que gana una
+  // zona lo pierde la otra" que ya explica el panel de AV(x).
+  const depth = key === "AP" ? xClamped : Math.max(L - teatroDepth - xClamped, 0);
+  const startZ = key === "AP" ? 0 : L - depth;
 
   mesh.material.color.setHex(GROUND_INDICATOR_COLOR[key]);
-  mesh.visible = width > 0.05;
-  mesh.scale.x = Math.max(width, 0.05);
-  mesh.position.set(startX + width / 2, 0.09, 5);
+  mesh.visible = depth > 0.05;
+  mesh.scale.z = Math.max(depth, 0.05);
+  mesh.position.set(0, 0.09, startZ + depth / 2);
 }
 
 /* =====================================================================
@@ -1603,19 +1632,26 @@ function buildCar(x, z, color, rotationY) {
 /** Coloca varios autos dentro del lote de parqueo, en dos filas que
  * siguen las líneas pintadas de la textura de asfalto, dejando un
  * margen amplio para no invadir la plaza de la entrada principal. */
-function buildParkedCars(xParqueo, parqueoWidth, bandDepth) {
+/**
+ * Autos estacionados dentro de la franja de parqueo — ahora de ancho
+ * completo (200 m) y poco profunda, junto a la entrada. La cuadrícula
+ * arranca después de la plaza/pilares de la entrada (que ocupan los
+ * primeros ~20 m) para no atravesarlos.
+ */
+function buildParkedCars(halfW, parqueoDepth) {
   const bodyColors = [0x2F4A45, 0x8A2F2F, 0x555A63, 0xB9822E, 0x37423A, 0x6E6A5C, 0x3D5A73];
-  const left = xParqueo - parqueoWidth / 2 + 16;
-  const right = xParqueo + parqueoWidth / 2 - 16;
-  const cols = [left, left + (right - left) * 0.33, left + (right - left) * 0.66, right];
-  const rows = [bandDepth * 0.34, bandDepth * 0.66, bandDepth * 0.92];
+  const margin = 18; // franja de circulación/jardín junto a los muros laterales
+  const usableHalf = halfW - margin;
+  const cols = [-0.85, -0.5, -0.15, 0.15, 0.5, 0.85].map((f) => f * usableHalf);
+  const rowStart = 26, rowEnd = Math.max(parqueoDepth - 6, rowStart + 10);
+  const rows = [rowStart, (rowStart + rowEnd) / 2, rowEnd];
 
   let i = 0;
   rows.forEach((z, rowIdx) => {
     cols.forEach((x, colIdx) => {
       // Se dejan un par de espacios vacíos para que no se vea "empacado".
-      if (rowIdx === 1 && colIdx === 2) return;
-      if (rowIdx === 2 && colIdx === 0) return;
+      if (rowIdx === 1 && colIdx === 4) return;
+      if (rowIdx === 2 && colIdx === 1) return;
       buildCar(x, z, bodyColors[i % bodyColors.length], colIdx % 2 === 0 ? 0 : Math.PI);
       i++;
     });
@@ -1626,11 +1662,14 @@ function buildParkedCars(xParqueo, parqueoWidth, bandDepth) {
  * Ensambla toda la "vida" decorativa de la escena y devuelve el arreglo
  * de criaturas animadas para que animate() las actualice cada cuadro.
  */
-function buildLife({ xTeatro, xParqueo, teatroWidth, parqueoWidth, bandDepth, zVerdeStart, zVerdeEnd, halfW }) {
+function buildLife({
+  halfW, teatroVisualWidth, teatroVisualDepth,
+  zParqueoStart, zParqueoEnd, zTeatroStart, zTeatroEnd, zVerdeStart, zVerdeEnd,
+}) {
   const creatures = [];
 
   // --- Autos estacionados en el parqueo (estáticos, sin costo por cuadro) ---
-  buildParkedCars(xParqueo, parqueoWidth, bandDepth);
+  buildParkedCars(halfW, zParqueoEnd - zParqueoStart);
 
   // --- Familia paseando en el área verde: dos adultos y un niño, en
   //     órbitas concéntricas con radios y fases ligeramente distintos
@@ -1651,9 +1690,12 @@ function buildLife({ xTeatro, xParqueo, teatroWidth, parqueoWidth, bandDepth, zV
   const kitePos = new THREE.Vector3(60, 0, zVerdeEnd - 28);
   creatures.push(buildKiteFlyer(kitePos));
 
-  // --- Un par de personas de pie cerca de la entrada / taquilla ---
-  creatures.push(addIdleFigure({ position: new THREE.Vector3(-7, 0, 11), rotationY: 0.5, shirtColor: 0x6E4C17, pantsColor: 0x3A3F3A, scale: 1, phase: 0 }));
-  creatures.push(addIdleFigure({ position: new THREE.Vector3(6.5, 0, 9.5), rotationY: -0.4, shirtColor: 0x1F5C4E, pantsColor: 0x35322C, scale: 0.97, phase: 1.8 }));
+  // --- Un par de personas de pie cerca de la taquilla: ahora la fachada
+  //     del teatro (con su marquesina) queda más adentro del terreno, al
+  //     final de la franja del parqueo — justo donde se paran. ---
+  const taquillaZ = zTeatroStart - teatroVisualDepth * 0.5 - 3.5 - 2;
+  creatures.push(addIdleFigure({ position: new THREE.Vector3(-7, 0, taquillaZ), rotationY: 0.5, shirtColor: 0x6E4C17, pantsColor: 0x3A3F3A, scale: 1, phase: 0 }));
+  creatures.push(addIdleFigure({ position: new THREE.Vector3(6.5, 0, taquillaZ - 1.5), rotationY: -0.4, shirtColor: 0x1F5C4E, pantsColor: 0x35322C, scale: 0.97, phase: 1.8 }));
 
   animatedCreatures = animatedCreatures.concat(creatures);
 }
@@ -1921,13 +1963,15 @@ function applyLampLevel(level) {
  * entrada, y dos más como "luces de jardín" en el área verde — todos en
  * posiciones que no chocan con los autos, la fuente ni las rutas donde
  * caminan las personas/el perro. */
-function buildLampPosts({ xParqueo, parqueoWidth }) {
-  const left = xParqueo - parqueoWidth / 2 + 10;
-  const right = xParqueo + parqueoWidth / 2 - 10;
+function buildLampPosts({ halfW, zParqueoStart, zParqueoEnd }) {
+  const xSide = halfW - 15; // cerca de los muros laterales del parqueo, ahora de ancho completo
+  const depth = zParqueoEnd - zParqueoStart;
+  const zNear = zParqueoStart + depth * 0.3;
+  const zFar = zParqueoStart + depth * 0.8;
   const positions = [
-    [left, 15], [right, 15], [left, 110], [right, 110],   // parqueo
-    [-16, 2], [16, 2],                                     // entrada
-    [75, 150], [-85, 150],                                 // jardín
+    [-xSide, zNear], [xSide, zNear], [-xSide, zFar], [xSide, zFar], // parqueo
+    [-16, 2], [16, 2],                                               // entrada
+    [75, 150], [-85, 150],                                           // jardín
   ];
   positions.forEach(([x, z]) => {
     lampPosts.push(buildLampPost(x, z));
