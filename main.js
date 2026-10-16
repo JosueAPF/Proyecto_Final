@@ -99,7 +99,7 @@ const contentData = {
     kicker: "Presentación del proyecto",
     title: "Modelado matemático de un teatro",
     body: [
-      "Este proyecto traduce el encargo de diseño de un teatro —construido sobre un terreno de <strong>200 m × 300 m</strong>— en seis modelos matemáticos: dos funciones de área, una función racional para el tanque de agua, una función de perímetro y una función cuadrática de ingreso que se optimiza mediante el vértice de la parábola.",
+      "Este proyecto traduce el encargo de diseño de un teatro —construido sobre un terreno de <strong>200 m × 300 m</strong>—  dos funciones de área, una función racional para el tanque de agua, una función de perímetro y una función cuadrática de ingreso que se optimiza mediante el vértice de la parábola.",
       "El enunciado original solo fija dos datos: las dimensiones del terreno y la capacidad del tanque (3,000 m³). Todo lo demás —la profundidad del parqueo, el precio del boleto, la asistencia esperada— se construyó como un <em>supuesto de diseño</em> explícito, no como un dato impuesto.",
       "Usa el visor 3D para explorar el terreno: cada zona, el tanque y el ingreso principal son objetos que puedes seleccionar. Al hacerlo, este panel mostrará la función que los describe, su dominio y una gráfica interactiva.",
     ],
@@ -126,7 +126,7 @@ const contentData = {
         ["Incremento de asistencia", "+200 por cada −Q10", "Supuesto de diseño"],
       ],
     },
-    callout: "Notación: <b>x</b> se usa únicamente para medidas de longitud (metros) y <b>t</b> para la variable del modelo de ingreso, evitando que un mismo símbolo represente dos magnitudes distintas.",
+    
   },
 
   croquis: {
@@ -149,7 +149,7 @@ const contentData = {
       ],
       highlightRow: -1,
     },
-    callout: "El visor 3D ya NO es una simplificación aparte del modelo algebraico: cada franja mide, de verdad, 200 m de ancho, así que AP(x) = 200x es exactamente la profundidad del parqueo multiplicada por el ancho fijo del terreno — no una aproximación.<br><br>Verificación: 15,000 + 10,000 + 35,000 = <b>60,000 m²</b>, exactamente el área del terreno.",
+    
   },
 
   parqueo: {
