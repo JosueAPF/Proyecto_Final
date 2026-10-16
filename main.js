@@ -927,6 +927,8 @@ function buildTerrain() {
   base.receiveShadow = true;
   scene.add(base);
 
+  
+
   // --- Zona: Parqueo (franja inferior, ancho completo, junto a la entrada) ---
   const parkTex = makeParkingTexture();
   addZone("ground_parqueo", 0x8B8D86, W, parqueoDepth, 0, zParqueoCenter, parkTex, true, 0);
@@ -942,7 +944,7 @@ function buildTerrain() {
   // El EDIFICIO se dibuja con un ancho visual contenido (no los 200 m
   // reales de la franja, que quedarían descomunales) — mismo criterio
   // que ya usa buildTank para el tanque "sin escala".
-  const theatreVisualWidth = 110;
+  const theatreVisualWidth = 250;// ancho redimencion--------------------------------------------------------->
   buildTheatreBuilding(0, zTeatroCenter, theatreVisualWidth, teatroDepth);
 
   // --- Tanque cilíndrico (sobre el techo del teatro) ---
@@ -960,12 +962,14 @@ function buildTerrain() {
   // --- Franja indicadora (oculta hasta que se mueva un slider de AP/AV) ---
   buildGroundIndicator();
 
+////////////////////////////////////////////////////////////////////comentado
   //provisional
-  const teatroVisualWidth = 110;
-buildTheatreBuilding(0, zTeatroCenter, teatroVisualWidth, teatroDepth);
+const teatroVisualWidth = 110;
+//buildTheatreBuilding(0, zTeatroCenter, teatroVisualWidth, teatroDepth);
 // --- Tanque cilíndrico (sobre el techo del teatro) ---
-buildTank(0, zTeatroCenter, teatroVisualWidth, teatroDepth);
+//buildTank(0, zTeatroCenter, teatroVisualWidth, teatroDepth);
   
+
   // --- Vida en la escena: personas, familia, perro, cometa y autos ---
   // Puramente decorativo: no son seleccionables ni afectan el raycasting,
   // igual que los árboles del área verde.
@@ -978,6 +982,15 @@ buildTank(0, zTeatroCenter, teatroVisualWidth, teatroDepth);
   // --- Mejoras del jardín: relieve suave, fuente, flores y árboles
   //     ornamentales. Se AGREGAN sobre lo anterior, sin quitar nada. ---
   buildGardenEnhancements({ zVerdeStart, zVerdeEnd, halfW });
+
+
+  //----------------------------------------
+  // (Asegúrate de que esta línea esté AQUÍ)
+  buildGreenExtras();
+
+  // --- Más vida en el área verde: mariposas, aves, bancas, picnic,
+  //     conejos, columpio en movimiento y un corredor ---
+  buildGreenLife();
 
   // --- Postes de luz: siempre visibles, su farol solo se enciende
   //     cuando el clima no es soleado (ver WEATHER_PRESETS / applyLampLevel). ---
@@ -1863,6 +1876,483 @@ function buildGardenEnhancements({ zVerdeStart, zVerdeEnd, halfW }) {
   buildFlowerPatch(new THREE.Vector3(80, 0, 140), 6, 46, [0x8A5FA8, 0xF4F1E6], 47);
 }
 
+//---------------------------------------------------------------------------------//
+/* =====================================================================
+EXTRAS ÁREA VERDE: Camino serpenteante + Zona de juegos
+(Insertado aquí para asegurar que 'scene' y 'terrainHeightAt' existen)
+===================================================================== */
+function buildGreenExtras() {
+  // Protección: si la escena no existe, salimos sin error fatal
+  if (!scene || typeof terrainHeightAt !== 'function') return;
+
+  const zStart = MODEL.terrenoLargo - MODEL.verdeArea / MODEL.terrenoAncho; // 125
+  const zEnd   = MODEL.terrenoLargo;                                        // 300
+  const centerZ = (zStart + zEnd) / 2;                                      // 212.5
+
+  // 🪨 CAMINO DE PIEDRA SERPENTEANTE
+  const pathCurve = new THREE.CatmullRomCurve3([
+    new THREE.Vector3(-70, 0, zStart + 20),
+    new THREE.Vector3(-35, 0, centerZ - 30),
+    new THREE.Vector3(10, 0, centerZ),
+    new THREE.Vector3(45, 0, centerZ + 35),
+    new THREE.Vector3(80, 0, zEnd - 25)
+  ]);
+  const pathPoints = pathCurve.getPoints(60);
+  const stoneMat = new THREE.MeshStandardMaterial({ color: 0x9A9588, roughness: 0.92 });
+  const plateGeo = new THREE.BoxGeometry(2.4, 0.06, 1.6);
+
+  pathPoints.forEach((p, i) => {
+    const plate = new THREE.Mesh(plateGeo, stoneMat);
+    // Usamos la función global terrainHeightAt
+    plate.position.set(p.x, terrainHeightAt(p.x, p.z) + 0.05, p.z);
+    const t = i / (pathPoints.length - 1);
+    const tangent = pathCurve.getTangent(t);
+    plate.rotation.y = Math.atan2(tangent.x, tangent.z);
+    plate.castShadow = true;
+    plate.receiveShadow = true;
+    scene.add(plate);
+  });
+
+  // 🎡 ZONA DE JUEGOS
+  const playX = 65;
+  const playZ = centerZ + 15;
+  const baseY = terrainHeightAt(playX, playZ) + 0.27;
+
+  const sandMat  = new THREE.MeshStandardMaterial({ color: 0xD4C5A9, roughness: 1 });
+  const metalMat = new THREE.MeshStandardMaterial({ color: 0x5A5449, roughness: 0.8 });
+  const plasticMat = new THREE.MeshStandardMaterial({ color: 0x3D6E7A, roughness: 0.6, metalness: 0.1 });
+  const accentMat = new THREE.MeshStandardMaterial({ color: 0xC9573F, roughness: 0.8 });
+
+  // Arenero
+  const sandbox = new THREE.Mesh(new THREE.BoxGeometry(5.5, 0.35, 5.5), sandMat);
+  sandbox.position.set(playX, baseY + 0.17, playZ);
+  sandbox.receiveShadow = true;
+  scene.add(sandbox);
+
+  // Tobogán
+  const platform = new THREE.Mesh(new THREE.BoxGeometry(2.8, 0.18, 2.8), plasticMat);
+  platform.position.set(playX, baseY + 2.2, playZ);
+  platform.castShadow = true;
+  scene.add(platform);
+
+  // 4 postes del tobogán
+  [[-1.1, -1.1], [1.1, -1.1], [-1.1, 1.1], [1.1, 1.1]].forEach(([dx, dz]) => {
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 2.2, 8), metalMat);
+    pole.position.set(playX + dx, baseY + 1.1, playZ + dz);
+    pole.castShadow = true;
+    scene.add(pole);
+  });
+
+  // Rampa del tobogán
+  const ramp = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.12, 3.8), plasticMat);
+  ramp.position.set(playX, baseY + 1.2, playZ + 3.2);
+  ramp.rotation.x = -0.42; 
+  ramp.castShadow = true;
+  scene.add(ramp);
+
+  // Columpio
+  const leg1 = new THREE.Mesh(new THREE.CylinderGeometry(0.08, 0.08, 3.0, 6), metalMat);
+  leg1.position.set(playX - 4.5, baseY + 1.5, playZ - 1.5);
+  leg1.rotation.z = 0.14; scene.add(leg1);
+
+  const leg2 = leg1.clone(); leg2.position.x = playX - 2.8; leg2.rotation.z = -0.14; scene.add(leg2);
+
+  const bar = new THREE.Mesh(new THREE.BoxGeometry(2.0, 0.12, 0.12), metalMat);
+  bar.position.set(playX - 3.65, baseY + 2.95, playZ - 1.5); scene.add(bar);
+
+  // --- Columpio EN MOVIMIENTO: cadenas + asiento (y un niño sentado)
+  //     cuelgan de un pivote ubicado en la barra; mecer todo el conjunto
+  //     es tan simple como rotar ese pivote cada cuadro. Un solo Group
+  //     reutilizado: nada de geometría nueva por frame.
+  const swingPivot = new THREE.Group();
+  swingPivot.position.set(playX - 3.65, baseY + 2.95, playZ - 1.5);
+  scene.add(swingPivot);
+
+  const chainGeo = new THREE.CylinderGeometry(0.02, 0.02, 1.6, 4);
+  [-0.35, 0.35].forEach((offset) => {
+    const chain = new THREE.Mesh(chainGeo, metalMat);
+    chain.position.set(offset, -0.85, 0);
+    swingPivot.add(chain);
+  });
+  const seat = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.08, 0.35), accentMat);
+  seat.position.set(0, -1.7, 0);
+  seat.castShadow = true;
+  swingPivot.add(seat);
+
+  // Niño en el columpio: va DENTRO del pivote, así se mece con el asiento.
+  const swinger = createFigure({ shirtColor: 0xC9573F, pantsColor: 0x2F4A45, scale: 0.6 });
+  swinger.legL.rotation.x = 1.25;   // piernas al frente (persona mira hacia -z local)
+  swinger.legR.rotation.x = 1.35;
+  swinger.armL.rotation.x = -0.55;  // brazos arriba, "agarrando" las cadenas
+  swinger.armR.rotation.x = -0.55;
+  // Cadera a la altura del asiento: origen del muñeco = asiento - cadera.
+  swinger.group.position.set(0, -1.66 - 0.95 * 0.6, 0.05);
+  swingPivot.add(swinger.group);
+
+  animatedCreatures.push({
+    update(delta, elapsed) {
+      const sway = Math.sin(elapsed * 1.9 + 0.8) * 0.38;
+      swingPivot.rotation.x = sway;
+      // El niño se impulsa levemente con los brazos contrarrestando el vaivén.
+      swinger.armL.rotation.x = -0.55 - sway * 0.4;
+      swinger.armR.rotation.x = -0.55 - sway * 0.4;
+    },
+  });
+}
+
+
+
+
+/* =====================================================================
+   MÁS VIDA EN EL ÁREA VERDE — mariposas, aves, bancas con gente,
+   picnic, conejos y columpio en movimiento.
+
+   Todo es puramente decorativo: nunca se agrega a `selectableObjects`,
+   así que no interfiere con el raycasting ni con el resto de la app.
+   Las cantidades se reducen automáticamente en modo rendimiento
+   (LOW_POWER_DEVICE), y solo se usan primitivas baratas (planos,
+   esferas, cilindros, cajas) con materiales simples — sin luces nuevas,
+   sin sombras extra y sin geometría nueva por fotograma: todo se
+   anima reutilizando los mismos meshes (rotar/reposicionar es casi
+   gratis incluso en GPUs de gama baja).
+   ===================================================================== */
+
+/** Mariposa: cuerpo minúsculo + dos alas planas que aletan. */
+function createButterfly(color = 0xE0B23A) {
+  const group = new THREE.Group();
+  const bodyMat = new THREE.MeshStandardMaterial({ color: 0x3A3226, roughness: 0.9 });
+  const wingMat = new THREE.MeshStandardMaterial({ color, roughness: 0.6, side: THREE.DoubleSide });
+
+  const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.045, 0.16, 3, 6), bodyMat);
+  body.rotation.x = Math.PI / 2; // eje del cuerpo a lo largo de z (vuelo)
+  group.add(body);
+
+  // Cada ala es un plano horizontal con la "bisagra" en el borde interno,
+  // así basta con rotar el pivote para aletear.
+  const wingGeoR = new THREE.PlaneGeometry(0.3, 0.22);
+  wingGeoR.translate(0.15, 0, 0);
+  const wingGeoL = new THREE.PlaneGeometry(0.3, 0.22);
+  wingGeoL.translate(-0.15, 0, 0);
+
+  const pivotR = new THREE.Group();
+  const wingR = new THREE.Mesh(wingGeoR, wingMat);
+  wingR.rotation.x = -Math.PI / 2;
+  pivotR.add(wingR);
+  const pivotL = new THREE.Group();
+  const wingL = new THREE.Mesh(wingGeoL, wingMat);
+  wingL.rotation.x = -Math.PI / 2;
+  pivotL.add(wingL);
+  group.add(pivotL, pivotR);
+
+  return { group, pivotL, pivotR };
+}
+
+/** Revoltijo de mariposas aleteando alrededor de un punto (un macizo
+ *  de flores): cada una revuela con su propia fase, radio y altura. */
+function addButterflies(center, count, colors, seed) {
+  const rand = mulberry32(seed);
+  const list = [];
+  for (let i = 0; i < count; i++) {
+    const b = createButterfly(colors[i % colors.length]);
+    scene.add(b.group);
+    list.push({
+      b,
+      phase: rand() * Math.PI * 2,
+      flapSpeed: 9 + rand() * 4,
+      anchorX: center.x + (rand() * 2 - 1) * 6,
+      anchorZ: center.z + (rand() * 2 - 1) * 6,
+      wanderR: 1.2 + rand() * 2.2,
+      speed: 0.5 + rand() * 0.5,
+      h: 0.9 + rand() * 1.4,
+    });
+  }
+  return {
+    update(delta, elapsed) {
+      list.forEach((s) => {
+        const t = elapsed * s.speed + s.phase;
+        const x = s.anchorX + Math.sin(t) * s.wanderR + Math.sin(t * 2.3) * 0.4;
+        const z = s.anchorZ + Math.cos(t * 0.8) * s.wanderR + Math.cos(t * 1.7) * 0.4;
+        const y = 0.35 + terrainHeightAt(x, z) + s.h + Math.sin(t * 3) * 0.25;
+        const dx = Math.cos(t) * s.wanderR * s.speed;
+        const dz = -Math.sin(t * 0.8) * 0.8 * s.wanderR * s.speed;
+        s.b.group.position.set(x, y, z);
+        s.b.group.rotation.y = Math.atan2(dx, dz);
+        const flap = 0.2 + Math.abs(Math.sin(elapsed * s.flapSpeed + s.phase)) * 1.0;
+        s.b.pivotL.rotation.z = -flap;
+        s.b.pivotR.rotation.z = flap;
+      });
+    },
+  };
+}
+
+/** Ave mínima: cono (cuerpo) + dos alas planas que baten. */
+function createBird(color = 0x4A4E52) {
+  const group = new THREE.Group();
+  const bodyMat = new THREE.MeshStandardMaterial({ color, roughness: 0.8 });
+  const wingMat = new THREE.MeshStandardMaterial({ color, roughness: 0.8, side: THREE.DoubleSide });
+
+  const body = new THREE.Mesh(new THREE.ConeGeometry(0.18, 0.9, 6), bodyMat);
+  body.rotation.x = Math.PI / 2; // el cono apunta hacia +z (dirección de vuelo)
+  group.add(body);
+
+  const wingGeo = new THREE.PlaneGeometry(0.9, 0.32);
+  wingGeo.translate(0.45, 0, 0); // bisagra en el cuerpo
+  const pivotR = new THREE.Group();
+  const wingR = new THREE.Mesh(wingGeo, wingMat);
+  wingR.rotation.x = Math.PI / 2; // ala horizontal: envergadura en x, cuerda en z
+  pivotR.add(wingR);
+  const pivotL = new THREE.Group();
+  const wingL = new THREE.Mesh(wingGeo, wingMat);
+  wingL.rotation.x = Math.PI / 2;
+  wingL.scale.x = -1; // ala izquierda: espejo
+  pivotL.add(wingL);
+  group.add(pivotL, pivotR);
+
+  return { group, pivotL, pivotR };
+}
+
+/** Bandada cruzando el cielo del área verde: cada ave sigue su círculo
+ *  (radio, altura, velocidad y sentido propios), con la tangente como
+ *  dirección de vuelo y un batido de alas desfasado. */
+function addBirdFlock(center, count, seed) {
+  const rand = mulberry32(seed);
+  const birds = [];
+  for (let i = 0; i < count; i++) {
+    const bird = createBird(i % 3 === 0 ? 0x8A6A45 : 0x4A4E52);
+    scene.add(bird.group);
+    birds.push({
+      bird,
+      radius: 34 + rand() * 26,
+      speed: (0.05 + rand() * 0.03) * (rand() > 0.5 ? 1 : -1),
+      phase: rand() * Math.PI * 2,
+      height: 30 + rand() * 12,
+      flap: 6 + rand() * 3,
+      bobPhase: rand() * Math.PI * 2,
+    });
+  }
+  return {
+    update(delta, elapsed) {
+      birds.forEach((s) => {
+        s.phase += delta * s.speed;
+        const dir = Math.sign(s.speed);
+        const x = center.x + Math.cos(s.phase) * s.radius;
+        const z = center.z + Math.sin(s.phase) * s.radius;
+        const y = s.height + Math.sin(elapsed * 0.7 + s.bobPhase) * 2;
+        const dx = -Math.sin(s.phase) * dir; // tangente = dirección de avance
+        const dz = Math.cos(s.phase) * dir;
+        s.bird.group.position.set(x, y, z);
+        s.bird.group.rotation.y = Math.atan2(dx, dz);
+        const flap = Math.sin(elapsed * s.flap + s.bobPhase) * 0.55;
+        s.bird.pivotL.rotation.z = -flap;
+        s.bird.pivotR.rotation.z = flap;
+      });
+    },
+  };
+}
+
+/** Banca de parque (listones de madera + patas de hierro) con una
+ *  persona sentada que se mece levemente. El muñeco es hijo del grupo
+ *  de la banca, así hereda su posición y orientación. */
+function buildBench(x, z, rotationY) {
+  const group = new THREE.Group();
+  const woodMat = new THREE.MeshStandardMaterial({ color: 0x8A6A45, roughness: 0.85 });
+  const ironMat = new THREE.MeshStandardMaterial({ color: 0x2E2F2C, roughness: 0.5, metalness: 0.4 });
+  const y0 = 0.27 + terrainHeightAt(x, z);
+
+  // Asiento: 3 listones
+  for (let i = 0; i < 3; i++) {
+    const slat = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.07, 0.16), woodMat);
+    slat.position.set(0, 0.48, -0.18 + i * 0.18);
+    slat.castShadow = true;
+    group.add(slat);
+  }
+  // Respaldo: 2 listones
+  for (let i = 0; i < 2; i++) {
+    const slat = new THREE.Mesh(new THREE.BoxGeometry(2.4, 0.16, 0.06), woodMat);
+    slat.position.set(0, 0.74 + i * 0.24, 0.3);
+    slat.castShadow = true;
+    group.add(slat);
+  }
+  // Patas y soportes del respaldo
+  [-1, 1].forEach((side) => {
+    const leg = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.48, 0.5), ironMat);
+    leg.position.set(side * 1.05, 0.24, 0.02);
+    leg.castShadow = true;
+    group.add(leg);
+    const back = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.7, 0.08), ironMat);
+    back.position.set(side * 1.05, 0.8, 0.3);
+    back.castShadow = true;
+    group.add(back);
+  });
+
+  group.position.set(x, y0, z);
+  group.rotation.y = rotationY;
+  scene.add(group);
+
+  // Persona sentada, mirando hacia -z local (de espaldas al respaldo)
+  const fig = createFigure({ shirtColor: 0x5C4A6E, pantsColor: 0x35322C, scale: 0.98 });
+  fig.legL.rotation.x = 1.3;
+  fig.legR.rotation.x = 1.42;
+  fig.armL.rotation.x = 0.3;
+  fig.armR.rotation.x = 0.24;
+  // Origen del muñeco: altura del asiento (~0.52) menos la cadera (0.95·escala)
+  fig.group.position.set(-0.35, 0.52 - 0.95 * 0.98, 0.0);
+  group.add(fig.group);
+
+  const phase = x * 0.37;
+  return {
+    update(delta, elapsed) {
+      fig.group.rotation.z = Math.sin(elapsed * 0.9 + phase) * 0.02;
+      fig.armL.rotation.x = 0.3 + Math.sin(elapsed * 1.1 + phase) * 0.05;
+      fig.armR.rotation.x = 0.24 - Math.sin(elapsed * 1.1 + phase) * 0.05;
+    },
+  };
+}
+
+/** Manta de picnic con una cesta y dos personas sentadas conversando
+ *  (balanceo sutil + gesto con el brazo). */
+function buildPicnic(x, z, rotationY = 0) {
+  const group = new THREE.Group();
+  const blanketMat = new THREE.MeshStandardMaterial({ color: 0xA6432F, roughness: 0.95 });
+  const y0 = 0.28 + terrainHeightAt(x, z);
+
+  const blanket = new THREE.Mesh(new THREE.BoxGeometry(3.2, 0.04, 2.6), blanketMat);
+  blanket.position.y = 0.02;
+  blanket.receiveShadow = true;
+  group.add(blanket);
+
+  const basket = new THREE.Mesh(
+    new THREE.BoxGeometry(0.5, 0.35, 0.35),
+    new THREE.MeshStandardMaterial({ color: 0x8A6A45, roughness: 0.9 })
+  );
+  basket.position.set(0.4, 0.22, 0.3);
+  basket.castShadow = true;
+  group.add(basket);
+
+  group.position.set(x, y0, z);
+  group.rotation.y = rotationY;
+  scene.add(group);
+
+  const sitters = [];
+  [[-0.9, -0.5, 0x3D6E7A, 0.9], [0.95, 0.6, 0xB9822E, -2.2]].forEach(([lx, lz, shirt, ry], i) => {
+    const fig = createFigure({ shirtColor: shirt, pantsColor: 0x35322C, scale: 0.95 });
+    fig.legL.rotation.x = 1.28;
+    fig.legR.rotation.x = 1.4;
+    fig.armL.rotation.x = 0.22;
+    fig.armR.rotation.x = 0.18;
+    // Sentados en el suelo: cadera a ~0.34 m sobre la manta
+    fig.group.position.set(lx, 0.34 - 0.95 * 0.95, lz);
+    fig.group.rotation.y = ry; // uno frente al otro
+    group.add(fig.group);
+    sitters.push({ fig, phase: i * 1.7 });
+  });
+
+  return {
+    update(delta, elapsed) {
+      sitters.forEach((s) => {
+        s.fig.group.rotation.z = Math.sin(elapsed * 0.8 + s.phase) * 0.03;
+        s.fig.armR.rotation.x = 0.18 + Math.sin(elapsed * 1.3 + s.phase) * 0.12;
+      });
+    },
+  };
+}
+
+/** Conejo mínimo: cuerpo, cabeza, orejas y colita. */
+function createRabbit(scale = 1) {
+  const group = new THREE.Group();
+  const furMat = new THREE.MeshStandardMaterial({ color: 0xC9BFA8, roughness: 0.95 });
+
+  const body = new THREE.Mesh(new THREE.SphereGeometry(0.22 * scale, 10, 8), furMat);
+  body.scale.set(1.25, 1, 0.9);
+  body.position.set(0, 0.22 * scale, 0);
+  body.castShadow = true;
+  group.add(body);
+
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.13 * scale, 10, 8), furMat);
+  head.position.set(0.24 * scale, 0.34 * scale, 0);
+  head.castShadow = true;
+  group.add(head);
+
+  const earGeo = new THREE.ConeGeometry(0.04 * scale, 0.24 * scale, 6);
+  const earL = new THREE.Mesh(earGeo, furMat);
+  earL.position.set(0.25 * scale, 0.52 * scale, -0.05 * scale);
+  earL.rotation.z = -0.12;
+  const earR = earL.clone();
+  earR.position.z = 0.05 * scale;
+  group.add(earL, earR);
+
+  const tail = new THREE.Mesh(
+    new THREE.SphereGeometry(0.07 * scale, 8, 6),
+    new THREE.MeshStandardMaterial({ color: 0xF4F1E6, roughness: 1 })
+  );
+  tail.position.set(-0.27 * scale, 0.26 * scale, 0);
+  group.add(tail);
+
+  return { group, earL, earR };
+}
+
+/** Conejo dando saltitos en una ruta de ida y vuelta (parábola en Y). */
+function addRabbit({ from, to, speed = 0.5, scale = 1, phase = 0 }) {
+  const rabbit = createRabbit(scale);
+  scene.add(rabbit.group);
+  const state = { u: 0, dir: 1 };
+  return {
+    update(delta) {
+      state.u += delta * speed * state.dir;
+      if (state.u > 1) { state.u = 1; state.dir = -1; }
+      if (state.u < 0) { state.u = 0; state.dir = 1; }
+      const x = THREE.MathUtils.lerp(from.x, to.x, state.u);
+      const z = THREE.MathUtils.lerp(from.z, to.z, state.u);
+      const hop = Math.abs(Math.sin(state.u * Math.PI * 8 + phase));
+      rabbit.group.position.set(x, 0.27 + terrainHeightAt(x, z) + hop * 0.28 * scale, z);
+      // El conejo "mira" hacia su eje +x local:
+      const dx = (to.x - from.x) * state.dir;
+      const dz = (to.z - from.z) * state.dir;
+      rabbit.group.rotation.y = Math.atan2(-dz, dx);
+      rabbit.earL.rotation.x = Math.sin(state.u * Math.PI * 8 + phase) * 0.25;
+      rabbit.earR.rotation.x = -Math.sin(state.u * Math.PI * 8 + phase) * 0.25;
+    },
+  };
+}
+
+/** Ensambla toda la vida extra del área verde. Posiciones elegidas para
+ *  NO intersectar las rutas existentes (familia, perro, caminante solitario,
+ *  cometa, corredor, fuente, juegos) — quedan como escenas aparte que se
+ *  cruzan visualmente pero nunca se "montan" unas sobre otras. */
+function buildGreenLife() {
+  const zStart = MODEL.terrenoLargo - MODEL.verdeArea / MODEL.terrenoAncho; // 125
+  const zEnd = MODEL.terrenoLargo;                                          // 300
+  const centerZ = (zStart + zEnd) / 2;                                      // 212.5
+
+  // --- Mariposas revoloteando sobre los macizos de flores existentes ---
+  animatedCreatures.push(addButterflies(new THREE.Vector3(-70, 0, 235), LOW_POWER_DEVICE ? 2 : 3, [0xE0B23A, 0xC9577A, 0x8A5FA8], 61));
+  animatedCreatures.push(addButterflies(new THREE.Vector3(-82, 0, 288), LOW_POWER_DEVICE ? 1 : 3, [0xF4F1E6, 0xE0B23A], 62));
+  animatedCreatures.push(addButterflies(new THREE.Vector3(80, 0, 140), LOW_POWER_DEVICE ? 1 : 3, [0x8A5FA8, 0xC9577A], 63));
+
+  // --- Bandada de aves cruzando el cielo del área verde ---
+  animatedCreatures.push(addBirdFlock(new THREE.Vector3(0, 0, centerZ), LOW_POWER_DEVICE ? 3 : 6, 71));
+
+  // --- Bancas con gente sentada (lejos de las rutas de los caminantes) ---
+  animatedCreatures.push(buildBench(30, 255, -2.2));
+  animatedCreatures.push(buildBench(-55, 155, 0.9));
+
+  // --- Pareja de picnic sobre la hierba ---
+  animatedCreatures.push(buildPicnic(0, 160, 0.4));
+
+  // --- Conejitos saltando cerca del camino de piedra ---
+  animatedCreatures.push(addRabbit({ from: new THREE.Vector3(-38, 0, 168), to: new THREE.Vector3(-20, 0, 186), speed: 0.5, scale: 1 }));
+  if (!LOW_POWER_DEVICE) {
+    animatedCreatures.push(addRabbit({ from: new THREE.Vector3(15, 0, 250), to: new THREE.Vector3(32, 0, 240), speed: 0.42, scale: 0.85, phase: 2 }));
+  }
+
+  // --- Corredor dando la vuelta al área verde (por fuera de la fuente
+  //     y de los juegos), aprovechando el walker existente ---
+  animatedCreatures.push(addLoopWalker({
+    center: new THREE.Vector3(0, 0, centerZ), radius: 60, speed: 0.125,
+    phase: 0.7, shirtColor: 0xC9573F, pantsColor: 0x2E2B26, scale: 1,
+  }));
+}
+
 /* =====================================================================
    POSTES DE LUZ
    El poste (base, tubo, farol) SIEMPRE es visible, de día o de noche —
@@ -2297,6 +2787,7 @@ function resetView() {
   startCameraAnim(DEFAULT_VIEW.pos, DEFAULT_VIEW.target);
 }
 
+
 /* =====================================================================
    6. ARRANQUE DE LA APLICACIÓN
    ===================================================================== */
@@ -2346,6 +2837,10 @@ function wireUI() {
   const closePanelBtn = document.getElementById("btn-close-panel");
   if (closePanelBtn) closePanelBtn.addEventListener("click", closePanels);
 }
+
+
+
+
 
 function init() {
   renderNav();
